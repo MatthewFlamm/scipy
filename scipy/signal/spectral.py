@@ -1582,7 +1582,7 @@ def coherence(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None,
 
 def _spectral_helper(x, y, fs=1.0, window='hann', nperseg=None, noverlap=None,
                      nfft=None, detrend='constant', return_onesided=True,
-                     scaling='spectrum', axis=-1, mode='psd', boundary=None,
+                     scaling='density', axis=-1, mode='psd', boundary=None,
                      padded=False):
     """
     Calculate various forms of windowed FFTs for PSD, CSD, etc.

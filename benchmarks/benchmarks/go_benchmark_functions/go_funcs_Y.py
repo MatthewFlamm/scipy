@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, print_function, absolute_import
-
 from numpy import abs, sum, cos, pi
 from .go_benchmark import Benchmark
 
@@ -24,13 +21,19 @@ class YaoLiu04(Benchmark):
     *Global optimum*: :math:`f(x) = 0` for :math:`x_i = 0` for
     :math:`i = 1, ..., n`
 
-    .. [1] Mishra, S. Global Optimization by Differential Evolution and
+    .. [1] Yao X., Liu Y. (1997) Fast evolution strategies.
+    In: Angeline P.J., Reynolds R.G., McDonnell J.R., Eberhart R. (eds)
+    Evolutionary Programming VI. EP 1997.
+    Lecture Notes in Computer Science, vol 1213. Springer, Berlin, Heidelberg
+
+    .. [2] Mishra, S. Global Optimization by Differential Evolution and
     Particle Swarm Methods: Evaluation on Some Benchmark Functions.
     Munich Personal RePEc Archive, 2006, 1005
 
     TODO line 1201.  Gavana code and documentation differ.
     max(abs(x)) != abs(max(x))
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -39,7 +42,6 @@ class YaoLiu04(Benchmark):
 
         self.global_optimum = [[0 for _ in range(self.N)]]
         self.fglob = 0.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1
@@ -66,10 +68,14 @@ class YaoLiu09(Benchmark):
     *Global optimum*: :math:`f(x) = 0` for :math:`x_i = 0` for
     :math:`i = 1, ..., n`
 
-    .. [1] Gavana, A. Global Optimization Benchmarks and AMPGO retrieved 2015
+    .. [1] Yao X., Liu Y. (1997) Fast evolution strategies.
+    In: Angeline P.J., Reynolds R.G., McDonnell J.R., Eberhart R. (eds)
+    Evolutionary Programming VI. EP 1997.
+    Lecture Notes in Computer Science, vol 1213. Springer, Berlin, Heidelberg
 
-    TODO Yao-Liu Fast Evolutionary programming is the the original ref.
+    .. [2] Gavana, A. Global Optimization Benchmarks and AMPGO retrieved 2015
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -78,7 +84,6 @@ class YaoLiu09(Benchmark):
 
         self.global_optimum = [[0 for _ in range(self.N)]]
         self.fglob = 0.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1

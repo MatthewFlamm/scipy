@@ -5,15 +5,14 @@
 #
 # !! Complex calculations really aren't checked that carefully.
 # !! Only real valued complex numbers are used in tests.
+from itertools import product
+import sys
 
-from __future__ import division, print_function, absolute_import
-
+import numpy as np
 from numpy import float32, float64, complex64, complex128, arange, array, \
                   zeros, shape, transpose, newaxis, common_type, conjugate
 
 from scipy.linalg import _fblas as fblas
-
-from scipy._lib.six import xrange
 
 from numpy.testing import assert_array_equal, \
     assert_allclose, assert_array_almost_equal, assert_
@@ -35,10 +34,10 @@ def matrixmultiply(a, b):
         b_is_vector = False
     assert_(a.shape[1] == b.shape[0])
     c = zeros((a.shape[0], b.shape[1]), common_type(a, b))
-    for i in xrange(a.shape[0]):
-        for j in xrange(b.shape[1]):
+    for i in range(a.shape[0]):
+        for j in range(b.shape[1]):
             s = 0
-            for k in xrange(a.shape[1]):
+            for k in range(a.shape[1]):
                 s += a[i, k] * b[k, j]
             c[i, j] = s
     if b_is_vector:
@@ -49,7 +48,7 @@ def matrixmultiply(a, b):
 # Test blas ?axpy
 
 
-class BaseAxpy(object):
+class BaseAxpy:
     ''' Mixin class for axpy tests '''
 
     def test_default_a(self):
@@ -132,7 +131,7 @@ class TestZaxpy(BaseAxpy):
 ##################################################
 # Test blas ?scal
 
-class BaseScal(object):
+class BaseScal:
     ''' Mixin class for scal testing '''
 
     def test_simple(self):
@@ -185,7 +184,7 @@ class TestZscal(BaseScal):
 ##################################################
 # Test blas ?copy
 
-class BaseCopy(object):
+class BaseCopy:
     ''' Mixin class for copy testing '''
 
     def test_simple(self):
@@ -263,7 +262,7 @@ class TestZcopy(BaseCopy):
 ##################################################
 # Test blas ?swap
 
-class BaseSwap(object):
+class BaseSwap:
     ''' Mixin class for swap tests '''
 
     def test_simple(self):
@@ -347,18 +346,17 @@ class TestZswap(BaseSwap):
 # This will be a mess to test all cases.
 
 
-class BaseGemv(object):
+class BaseGemv:
     ''' Mixin class for gemv tests '''
 
     def get_data(self, x_stride=1, y_stride=1):
+        rng = np.random.default_rng(1234)
         mult = array(1, dtype=self.dtype)
         if self.dtype in [complex64, complex128]:
             mult = array(1+1j, dtype=self.dtype)
-        from numpy.random import normal, seed
-        seed(1234)
         alpha = array(1., dtype=self.dtype) * mult
         beta = array(1., dtype=self.dtype) * mult
-        a = normal(0., 1., (3, 3)).astype(self.dtype) * mult
+        a = rng.normal(0., 1., (3, 3)).astype(self.dtype) * mult
         x = arange(shape(a)[0]*x_stride, dtype=self.dtype) * mult
         y = arange(shape(a)[1]*y_stride, dtype=self.dtype) * mult
         return alpha, beta, a, x, y
@@ -435,14 +433,8 @@ try:
         blas_func = fblas.sgemv
         dtype = float32
 
+        @pytest.mark.skipif(sys.platform != 'darwin', reason="MacOS specific test")
         def test_sgemv_on_osx(self):
-            from itertools import product
-            import sys
-            import numpy as np
-
-            if sys.platform != 'darwin':
-                return
-
             def aligned_array(shape, align, dtype, order='C'):
                 # Make array shape `shape` with aligned at `align` bytes
                 d = dtype()
@@ -468,9 +460,10 @@ try:
                                 rtol=1e-5, atol=1e-7)
 
             testdata = product((15, 32), (10000,), (200, 89), ('C', 'F'))
+            rng = np.random.default_rng(1234)
             for align, m, n, a_order in testdata:
-                A_d = np.random.rand(m, n)
-                X_d = np.random.rand(n)
+                A_d = rng.random((m, n))
+                X_d = rng.random(n)
                 desired = np.dot(A_d, X_d)
                 # Calculation with aligned single precision
                 A_f = as_aligned(A_d, align, np.float32, order=a_order)
@@ -506,18 +499,17 @@ class TestZgemv(BaseGemv):
 ### Test blas ?ger
 ### This will be a mess to test all cases.
 
-class BaseGer(object):
+class BaseGer:
     def get_data(self,x_stride=1,y_stride=1):
-        from numpy.random import normal, seed
-        seed(1234)
+        rng = np.random.default_rng(1234)
         alpha = array(1., dtype = self.dtype)
-        a = normal(0.,1.,(3,3)).astype(self.dtype)
+        a = rng.normal(0.,1.,(3,3)).astype(self.dtype)
         x = arange(shape(a)[0]*x_stride,dtype=self.dtype)
         y = arange(shape(a)[1]*y_stride,dtype=self.dtype)
         return alpha,a,x,y
     def test_simple(self):
         alpha,a,x,y = self.get_data()
-        # tranpose takes care of Fortran vs. C(and Python) memory layout
+        # transpose takes care of Fortran vs. C(and Python) memory layout
         desired_a = alpha*transpose(x[:,newaxis]*y) + a
         self.blas_func(x,y,a)
         assert_array_almost_equal(desired_a,a)
@@ -555,19 +547,18 @@ class TestDger(BaseGer):
 """
 class BaseGerComplex(BaseGer):
     def get_data(self,x_stride=1,y_stride=1):
-        from numpy.random import normal, seed
-        seed(1234)
+        rng = np.random.default_rng(1234)
         alpha = array(1+1j, dtype = self.dtype)
-        a = normal(0.,1.,(3,3)).astype(self.dtype)
-        a = a + normal(0.,1.,(3,3)) * array(1j, dtype = self.dtype)
-        x = normal(0.,1.,shape(a)[0]*x_stride).astype(self.dtype)
+        a = rng.normal(0.,1.,(3,3)).astype(self.dtype)
+        a = a + rng.normal(0.,1.,(3,3)) * array(1j, dtype = self.dtype)
+        x = rng.normal(0.,1.,shape(a)[0]*x_stride).astype(self.dtype)
         x = x + x * array(1j, dtype = self.dtype)
-        y = normal(0.,1.,shape(a)[1]*y_stride).astype(self.dtype)
+        y = rng.normal(0.,1.,shape(a)[1]*y_stride).astype(self.dtype)
         y = y + y * array(1j, dtype = self.dtype)
         return alpha,a,x,y
     def test_simple(self):
         alpha,a,x,y = self.get_data()
-        # tranpose takes care of Fortran vs. C(and Python) memory layout
+        # transpose takes care of Fortran vs. C(and Python) memory layout
         a = a * array(0.,dtype = self.dtype)
         #desired_a = alpha*transpose(x[:,newaxis]*self.transform(y)) + a
         desired_a = alpha*transpose(x[:,newaxis]*y) + a

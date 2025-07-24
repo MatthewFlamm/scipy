@@ -1,4 +1,5 @@
-from __future__ import division, print_function, absolute_import
+from types import GenericAlias
+
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 from scipy.sparse import issparse, csc_matrix, eye
@@ -84,15 +85,11 @@ class BDF(OdeSolver):
     Parameters
     ----------
     fun : callable
-        Right-hand side of the system. The calling signature is ``fun(t, y)``.
-        Here ``t`` is a scalar, and there are two options for the ndarray ``y``:
-        It can either have shape (n,); then ``fun`` must return array_like with
-        shape (n,). Alternatively it can have shape (n, k); then ``fun``
-        must return an array_like with shape (n, k), i.e. each column
-        corresponds to a single column in ``y``. The choice between the two
-        options is determined by `vectorized` argument (see below). The
-        vectorized implementation allows a faster approximation of the Jacobian
-        by finite differences (required for this solver).
+        Right-hand side of the system: the time derivative of the state ``y``
+        at time ``t``. The calling signature is ``fun(t, y)``, where ``t`` is a
+        scalar and ``y`` is an ndarray with ``len(y) = len(y0)``. ``fun`` must
+        return an array of the same shape as ``y``. See `vectorized` for more
+        information.
     t0 : float
         Initial time.
     y0 : array_like, shape (n,)
@@ -104,15 +101,19 @@ class BDF(OdeSolver):
         Initial step size. Default is ``None`` which means that the algorithm
         should choose.
     max_step : float, optional
-        Maximum allowed step size. Default is np.inf, i.e. the step size is not
+        Maximum allowed step size. Default is np.inf, i.e., the step size is not
         bounded and determined solely by the solver.
     rtol, atol : float and array_like, optional
         Relative and absolute tolerances. The solver keeps the local error
         estimates less than ``atol + rtol * abs(y)``. Here `rtol` controls a
-        relative accuracy (number of correct digits). But if a component of `y`
-        is approximately below `atol`, the error only needs to fall within
-        the same `atol` threshold, and the number of correct digits is not
-        guaranteed. If components of y have different scales, it might be
+        relative accuracy (number of correct digits), while `atol` controls
+        absolute accuracy (number of correct decimal places). To achieve the
+        desired `rtol`, set `atol` to be smaller than the smallest value that
+        can be expected from ``rtol * abs(y)`` so that `rtol` dominates the
+        allowable error. If `atol` is larger than ``rtol * abs(y)`` the
+        number of correct digits is not guaranteed. Conversely, to achieve the
+        desired `atol` set `rtol` such that ``rtol * abs(y)`` is always smaller
+        than `atol`. If components of y have different scales, it might be
         beneficial to set different `atol` values for different components by
         passing array_like with shape (n,) for `atol`. Default values are
         1e-3 for `rtol` and 1e-6 for `atol`.
@@ -142,7 +143,20 @@ class BDF(OdeSolver):
         element in the Jacobian is always zero. If None (default), the Jacobian
         is assumed to be dense.
     vectorized : bool, optional
-        Whether `fun` is implemented in a vectorized fashion. Default is False.
+        Whether `fun` can be called in a vectorized fashion. Default is False.
+
+        If ``vectorized`` is False, `fun` will always be called with ``y`` of
+        shape ``(n,)``, where ``n = len(y0)``.
+
+        If ``vectorized`` is True, `fun` may be called with ``y`` of shape
+        ``(n, k)``, where ``k`` is an integer. In this case, `fun` must behave
+        such that ``fun(t, y)[:, i] == fun(t, y[:, i])`` (i.e. each column of
+        the returned array is the time derivative of the state corresponding
+        with a column of ``y``).
+
+        Setting ``vectorized=True`` allows for faster finite difference
+        approximation of the Jacobian by this method, but may result in slower
+        execution overall in some circumstances (e.g. small ``len(y0)``).
 
     Attributes
     ----------
@@ -182,17 +196,22 @@ class BDF(OdeSolver):
            sparse Jacobian matrices", Journal of the Institute of Mathematics
            and its Applications, 13, pp. 117-120, 1974.
     """
+
+    # generic type compatibility with scipy-stubs
+    __class_getitem__ = classmethod(GenericAlias)
+
     def __init__(self, fun, t0, y0, t_bound, max_step=np.inf,
                  rtol=1e-3, atol=1e-6, jac=None, jac_sparsity=None,
                  vectorized=False, first_step=None, **extraneous):
         warn_extraneous(extraneous)
-        super(BDF, self).__init__(fun, t0, y0, t_bound, vectorized,
-                                  support_complex=True)
+        super().__init__(fun, t0, y0, t_bound, vectorized,
+                         support_complex=True)
         self.max_step = validate_max_step(max_step)
         self.rtol, self.atol = validate_tol(rtol, atol, self.n)
         f = self.fun(self.t, self.y)
         if first_step is None:
-            self.h_abs = select_initial_step(self.fun, self.t, self.y, f,
+            self.h_abs = select_initial_step(self.fun, self.t, self.y,
+                                             t_bound, max_step, f,
                                              self.direction, 1,
                                              self.rtol, self.atol)
         else:
@@ -277,9 +296,8 @@ class BDF(OdeSolver):
                     return np.asarray(jac(t, y), dtype=y0.dtype)
 
             if J.shape != (self.n, self.n):
-                raise ValueError("`jac` is expected to have shape {}, but "
-                                 "actually has {}."
-                                 .format((self.n, self.n), J.shape))
+                raise ValueError(f"`jac` is expected to have shape {(self.n, self.n)},"
+                                 f" but actually has {J.shape}.")
         else:
             if issparse(jac):
                 J = csc_matrix(jac, dtype=y0.dtype)
@@ -287,9 +305,8 @@ class BDF(OdeSolver):
                 J = np.asarray(jac, dtype=y0.dtype)
 
             if J.shape != (self.n, self.n):
-                raise ValueError("`jac` is expected to have shape {}, but "
-                                 "actually has {}."
-                                 .format((self.n, self.n), J.shape))
+                raise ValueError(f"`jac` is expected to have shape {(self.n, self.n)},"
+                                 f" but actually has {J.shape}.")
             jac_wrapped = None
 
         return jac_wrapped, J
@@ -422,7 +439,7 @@ class BDF(OdeSolver):
             error_p_norm = np.inf
 
         error_norms = np.array([error_m_norm, error_norm, error_p_norm])
-        with np.errstate(divide='ignore'): 
+        with np.errstate(divide='ignore'):
             factors = error_norms ** (-1 / np.arange(order, order + 3))
 
         delta_order = np.argmax(factors) - 1
@@ -444,7 +461,7 @@ class BDF(OdeSolver):
 
 class BdfDenseOutput(DenseOutput):
     def __init__(self, t_old, t, h, order, D):
-        super(BdfDenseOutput, self).__init__(t_old, t)
+        super().__init__(t_old, t)
         self.order = order
         self.t_shift = self.t - h * np.arange(self.order)
         self.denom = h * (1 + np.arange(self.order))

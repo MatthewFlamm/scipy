@@ -1,13 +1,15 @@
 # Created by John Travers, Robert Hetland, 2007
 """ Test functions for rbf module """
-from __future__ import division, print_function, absolute_import
-
 
 import numpy as np
-from numpy.testing import (assert_, assert_array_almost_equal,
-                           assert_almost_equal)
-from numpy import linspace, sin, cos, random, exp, allclose
-from scipy.interpolate.rbf import Rbf
+
+
+from scipy._lib._array_api import assert_array_almost_equal, assert_almost_equal
+
+from numpy import linspace, sin, cos, exp, allclose
+from scipy.interpolate._rbf import Rbf
+from scipy._lib._testutils import _run_concurrent_barrier
+
 
 FUNCTIONS = ('multiquadric', 'inverse multiquadric', 'gaussian',
              'cubic', 'quintic', 'thin-plate', 'linear')
@@ -20,13 +22,14 @@ def check_rbf1d_interpolation(function):
     rbf = Rbf(x, y, function=function)
     yi = rbf(x)
     assert_array_almost_equal(y, yi)
-    assert_almost_equal(rbf(float(x[0])), y[0])
+    assert_almost_equal(rbf(float(x[0])), y[0], check_0d=False)
 
 
 def check_rbf2d_interpolation(function):
     # Check that the Rbf function interpolates through the nodes (2D).
-    x = random.rand(50,1)*4-2
-    y = random.rand(50,1)*4-2
+    rng = np.random.RandomState(1234)
+    x = rng.rand(50,1)*4-2
+    y = rng.rand(50,1)*4-2
     z = x*exp(-x**2-1j*y**2)
     rbf = Rbf(x, y, z, epsilon=2, function=function)
     zi = rbf(x, y)
@@ -36,9 +39,10 @@ def check_rbf2d_interpolation(function):
 
 def check_rbf3d_interpolation(function):
     # Check that the Rbf function interpolates through the nodes (3D).
-    x = random.rand(50, 1)*4 - 2
-    y = random.rand(50, 1)*4 - 2
-    z = random.rand(50, 1)*4 - 2
+    rng = np.random.RandomState(1234)
+    x = rng.rand(50, 1)*4 - 2
+    y = rng.rand(50, 1)*4 - 2
+    z = rng.rand(50, 1)*4 - 2
     d = x*exp(-x**2 - y**2)
     rbf = Rbf(x, y, z, d, epsilon=2, function=function)
     di = rbf(x, y, z)
@@ -54,7 +58,7 @@ def test_rbf_interpolation():
 
 
 def check_2drbf1d_interpolation(function):
-    # Check that the 2-dim Rbf function interpolates through the nodes (1D)
+    # Check that the 2-D Rbf function interpolates through the nodes (1D)
     x = linspace(0, 10, 9)
     y0 = sin(x)
     y1 = cos(x)
@@ -66,9 +70,10 @@ def check_2drbf1d_interpolation(function):
 
 
 def check_2drbf2d_interpolation(function):
-    # Check that the 2-dim Rbf function interpolates through the nodes (2D).
-    x = random.rand(50, ) * 4 - 2
-    y = random.rand(50, ) * 4 - 2
+    # Check that the 2-D Rbf function interpolates through the nodes (2D).
+    rng = np.random.RandomState(1234)
+    x = rng.rand(50, ) * 4 - 2
+    y = rng.rand(50, ) * 4 - 2
     z0 = x * exp(-x ** 2 - 1j * y ** 2)
     z1 = y * exp(-y ** 2 - 1j * x ** 2)
     z = np.vstack([z0, z1]).T
@@ -79,10 +84,11 @@ def check_2drbf2d_interpolation(function):
 
 
 def check_2drbf3d_interpolation(function):
-    # Check that the 2-dim Rbf function interpolates through the nodes (3D).
-    x = random.rand(50, ) * 4 - 2
-    y = random.rand(50, ) * 4 - 2
-    z = random.rand(50, ) * 4 - 2
+    # Check that the 2-D Rbf function interpolates through the nodes (3D).
+    rng = np.random.RandomState(1234)
+    x = rng.rand(50, ) * 4 - 2
+    y = rng.rand(50, ) * 4 - 2
+    z = rng.rand(50, ) * 4 - 2
     d0 = x * exp(-x ** 2 - y ** 2)
     d1 = y * exp(-y ** 2 - x ** 2)
     d = np.vstack([d0, d1]).T
@@ -107,14 +113,8 @@ def check_rbf1d_regularity(function, atol):
     rbf = Rbf(x, y, function=function)
     xi = linspace(0, 10, 100)
     yi = rbf(xi)
-    # import matplotlib.pyplot as plt
-    # plt.figure()
-    # plt.plot(x, y, 'o', xi, sin(xi), ':', xi, yi, '-')
-    # plt.plot(x, y, 'o', xi, yi-sin(xi), ':')
-    # plt.title(function)
-    # plt.show()
-    msg = "abs-diff: %f" % abs(yi - sin(xi)).max()
-    assert_(allclose(yi, sin(xi), atol=atol), msg)
+    msg = f"abs-diff: {abs(yi - sin(xi)).max():f}"
+    assert allclose(yi, sin(xi), atol=atol), msg
 
 
 def test_rbf_regularity():
@@ -132,7 +132,7 @@ def test_rbf_regularity():
 
 
 def check_2drbf1d_regularity(function, atol):
-    # Check that the 2-dim Rbf function approximates a smooth function well away
+    # Check that the 2-D Rbf function approximates a smooth function well away
     # from the nodes.
     x = linspace(0, 10, 9)
     y0 = sin(x)
@@ -141,8 +141,8 @@ def check_2drbf1d_regularity(function, atol):
     rbf = Rbf(x, y, function=function, mode='N-D')
     xi = linspace(0, 10, 100)
     yi = rbf(xi)
-    msg = "abs-diff: %f" % abs(yi - np.vstack([sin(xi), cos(xi)]).T).max()
-    assert_(allclose(yi, np.vstack([sin(xi), cos(xi)]).T, atol=atol), msg)
+    msg = f"abs-diff: {abs(yi - np.vstack([sin(xi), cos(xi)]).T).max():f}"
+    assert allclose(yi, np.vstack([sin(xi), cos(xi)]).T, atol=atol), msg
 
 
 def test_2drbf_regularity():
@@ -160,20 +160,20 @@ def test_2drbf_regularity():
 
 
 def check_rbf1d_stability(function):
-    # Check that the Rbf function with default epsilon is not subject 
-    # to overshoot.  Regression for issue #4523.
+    # Check that the Rbf function with default epsilon is not subject
+    # to overshoot. Regression for issue #4523.
     #
-    # Generate some data (fixed random seed hence deterministic) 
-    np.random.seed(1234)
+    # Generate some data (fixed random seed hence deterministic)
+    rng = np.random.RandomState(1234)
     x = np.linspace(0, 10, 50)
-    z = x + 4.0 * np.random.randn(len(x))
+    z = x + 4.0 * rng.randn(len(x))
 
     rbf = Rbf(x, z, function=function)
     xi = np.linspace(0, 10, 1000)
     yi = rbf(xi)
 
     # subtract the linear trend and make sure there no spikes
-    assert_(np.abs(yi-xi).max() / np.abs(z-x).max() < 1.1)
+    assert np.abs(yi-xi).max() / np.abs(z-x).max() < 1.1
 
 def test_rbf_stability():
     for function in FUNCTIONS:
@@ -194,7 +194,8 @@ def test_function_is_callable():
     # Check that the Rbf class can be constructed with function=callable.
     x = linspace(0,10,9)
     y = sin(x)
-    linfunc = lambda x:x
+    def linfunc(x):
+        return x
     rbf = Rbf(x, y, function=linfunc)
     yi = rbf(x)
     assert_array_almost_equal(y, yi)
@@ -216,7 +217,7 @@ def test_two_arg_function_is_callable():
 def test_rbf_epsilon_none():
     x = linspace(0, 10, 9)
     y = sin(x)
-    rbf = Rbf(x, y, epsilon=None)
+    Rbf(x, y, epsilon=None)
 
 
 def test_rbf_epsilon_none_collinear():
@@ -226,4 +227,18 @@ def test_rbf_epsilon_none_collinear():
     y = [4, 4, 4]
     z = [5, 6, 7]
     rbf = Rbf(x, y, z, epsilon=None)
-    assert_(rbf.epsilon > 0)
+    assert rbf.epsilon > 0
+
+
+def test_rbf_concurrency():
+    x = linspace(0, 10, 100)
+    y0 = sin(x)
+    y1 = cos(x)
+    y = np.vstack([y0, y1]).T
+    rbf = Rbf(x, y, mode='N-D')
+
+    def worker_fn(_, interp, xp):
+        interp(xp)
+
+    _run_concurrent_barrier(10, worker_fn, rbf, x)
+

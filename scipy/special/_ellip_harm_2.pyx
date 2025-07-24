@@ -1,24 +1,23 @@
-from __future__ import absolute_import
+cdef extern from "Python.h":
+    object PyCapsule_New(void *pointer, char *name, void *destructor)
 
-import ctypes
 from libc.math cimport sqrt, fabs
 from libc.stdlib cimport free
 from numpy import nan
 
-cdef extern from "Python.h":
-    object PyCapsule_New(void *pointer, char *name, void *destructor)
-
 from scipy._lib._ccallback import LowLevelCallable
 from ._ellip_harm cimport ellip_harmonic, ellip_harm_eval, lame_coefficients
+from . cimport sf_error
+
 
 ctypedef struct _ellip_data_t:
     double *eval
     double h2, k2
     int n, p
 
-cdef double _F_integrand(double t, void *user_data) nogil:
+cdef double _F_integrand(double t, void *user_data) noexcept nogil:
     cdef _ellip_data_t *data = <_ellip_data_t *>user_data
-    cdef double h2, k2, t2, i, a, result
+    cdef double h2, k2, t2, i, result
     cdef int n, p
     cdef double * eval
     t2 = t*t
@@ -31,12 +30,11 @@ cdef double _F_integrand(double t, void *user_data) nogil:
     result = 1/(i*i*sqrt(1 - t2*k2)*sqrt(1 - t2*h2))
     return result
 
-cdef double _F_integrand1(double t, void *user_data) nogil:
+cdef double _F_integrand1(double t, void *user_data) noexcept nogil:
     cdef _ellip_data_t *data = <_ellip_data_t *>user_data
-    cdef double h2, k2, t2, i, a, h, result
+    cdef double h2, k2, i, h, result
     cdef int n, p
     cdef double * eval
-    t2 = t*t
     h2 = data[0].h2
     k2 =data[0].k2
     n = data[0].n
@@ -49,9 +47,9 @@ cdef double _F_integrand1(double t, void *user_data) nogil:
     result = i*i/sqrt((t + h)*(t + k))
     return result
 
-cdef double _F_integrand2(double t, void *user_data) nogil:
+cdef double _F_integrand2(double t, void *user_data) noexcept nogil:
     cdef _ellip_data_t *data = <_ellip_data_t *>user_data
-    cdef double h2, k2, t2, i, a, h, result
+    cdef double h2, k2, t2, i, h, result
     cdef int n, p
     cdef double * eval
     t2 = t*t
@@ -67,9 +65,9 @@ cdef double _F_integrand2(double t, void *user_data) nogil:
     result = t2*i*i/sqrt((t + h)*(t + k))
     return result
 
-cdef double _F_integrand3(double t, void *user_data) nogil:
+cdef double _F_integrand3(double t, void *user_data) noexcept nogil:
     cdef _ellip_data_t *data = <_ellip_data_t *>user_data
-    cdef double h2, k2, t2, i, a, h, result
+    cdef double h2, k2, t2, i, h, result
     cdef int n, p
     cdef double * eval
     t2 = t*t
@@ -80,14 +78,13 @@ cdef double _F_integrand3(double t, void *user_data) nogil:
     eval = data[0].eval
 
     h = sqrt(h2)
-    k = sqrt(k2)
     i = ellip_harm_eval( h2, k2, n, p, t, eval, 1, 1)
     result = i*i/sqrt((t + h)*(k2 - t2))
     return result
 
-cdef double _F_integrand4(double t, void *user_data) nogil:
+cdef double _F_integrand4(double t, void *user_data) noexcept nogil:
     cdef _ellip_data_t *data = <_ellip_data_t *>user_data
-    cdef double h2, k2, t2, i, a, h, result
+    cdef double h2, k2, t2, i, h, result
     cdef int n, p
     cdef double *eval
     t2 = t*t
@@ -98,7 +95,6 @@ cdef double _F_integrand4(double t, void *user_data) nogil:
     eval = data[0].eval
 
     h = sqrt(h2)
-    k = sqrt(k2)
     i = ellip_harm_eval( h2, k2, n, p, t, eval, 1, 1)
     result = i*i*t2/sqrt((t + h)*(k2 - t2))
     return result
@@ -142,7 +138,6 @@ def _ellipsoid_norm(double h2, double k2, int n, int p):
 
     cdef _ellip_data_t data
 
-    cdef double *eigv
     cdef void *bufferp
     eval = lame_coefficients(h2, k2, n, p, &bufferp, 1, 1)
     if not eval:
@@ -198,9 +193,15 @@ np.import_ufunc()
 cdef extern from "numpy/ufuncobject.h":
     int PyUFunc_getfperr() nogil
 
-cdef public int wrap_PyUFunc_getfperr() nogil:
+cdef public int wrap_PyUFunc_getfperr() noexcept nogil:
     """
     Call PyUFunc_getfperr in a context where PyUFunc_API array is initialized;
     this avoids messing with the UNIQUE_SYMBOL #defines
     """
     return PyUFunc_getfperr()
+
+
+cdef void _set_action(
+    sf_error.sf_error_t code, sf_error.sf_action_t action
+) noexcept nogil:
+    sf_error.set_action(code, action)

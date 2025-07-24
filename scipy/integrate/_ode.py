@@ -34,16 +34,14 @@ class complex_ode
 
 This class has the same generic interface as ode, except it can handle complex
 f, y and Jacobians by transparently translating them into the equivalent
-real valued system. It supports the real valued solvers (i.e not zvode) and is
+real-valued system. It supports the real-valued solvers (i.e., not zvode) and is
 an alternative to ode with the zvode solver, sometimes performing better.
 """
-from __future__ import division, print_function, absolute_import
-
 # XXX: Integrators must have:
 # ===========================
 # cvode - C version of vode and vodpk with many improvements.
-#   Get it from http://www.netlib.org/ode/cvode.tar.gz
-#   To wrap cvode to Python, one must write extension module by
+#   Get it from http://www.netlib.org/ode/cvode.tar.gz.
+#   To wrap cvode to Python, one must write the extension module by
 #   hand. Its interface is too much 'advanced C' that using f2py
 #   would be too complicated (or impossible).
 #
@@ -81,17 +79,28 @@ from __future__ import division, print_function, absolute_import
 #     IntegratorBase.integrator_classes.append(myodeint)
 
 __all__ = ['ode', 'complex_ode']
-__version__ = "$Id$"
-__docformat__ = "restructuredtext en"
 
 import re
+import threading
+import types
 import warnings
 
-from numpy import asarray, array, zeros, int32, isscalar, real, imag, vstack
+from numpy import asarray, array, zeros, isscalar, real, imag, vstack
 
-from . import vode as _vode
+from . import _vode
 from . import _dop
-from . import lsoda as _lsoda
+from . import _lsoda
+
+
+_dop_int_dtype = _dop.types.intvar.dtype
+_vode_int_dtype = _vode.types.intvar.dtype
+_lsoda_int_dtype = _lsoda.types.intvar.dtype
+
+
+# lsoda, vode and zvode are not thread-safe. VODE_LOCK protects both vode and
+# zvode; they share the `def run` implementation
+LSODA_LOCK = threading.Lock()
+VODE_LOCK = threading.Lock()
 
 
 # ------------------------------------------------------------------------------
@@ -99,7 +108,7 @@ from . import lsoda as _lsoda
 # ------------------------------------------------------------------------------
 
 
-class ode(object):
+class ode:
     """
     A generic interface class to numeric integrators.
 
@@ -169,7 +178,7 @@ class ode(object):
         - with_jacobian : bool
           This option is only considered when the user has not supplied a
           Jacobian function and has not indicated (by setting either band)
-          that the Jacobian is banded.  In this case, `with_jacobian` specifies
+          that the Jacobian is banded. In this case, `with_jacobian` specifies
           whether the iteration method of the ODE solver's correction step is
           chord iteration with an internally generated full Jacobian or
           functional iteration with no Jacobian.
@@ -187,7 +196,7 @@ class ode(object):
     "zvode"
 
         Complex-valued Variable-coefficient Ordinary Differential Equation
-        solver, with fixed-leading-coefficient implementation.  It provides
+        solver, with fixed-leading-coefficient implementation. It provides
         implicit Adams method (for non-stiff problems) and a method based on
         backward differentiation formulas (BDF) (for stiff problems).
 
@@ -205,10 +214,10 @@ class ode(object):
 
             When using ZVODE for a stiff system, it should only be used for
             the case in which the function f is analytic, that is, when each f(i)
-            is an analytic function of each y(j).  Analyticity means that the
+            is an analytic function of each y(j). Analyticity means that the
             partial derivative df(i)/dy(j) is a unique complex number, and this
             fact is critical in the way ZVODE solves the dense or banded linear
-            systems that arise in the stiff case.  For a complex stiff ODE system
+            systems that arise in the stiff case. For a complex stiff ODE system
             in which f is not analytic, ZVODE is likely to have convergence
             failures, and for this problem one should instead use DVODE on the
             equivalent real system (in the real and imaginary parts of y).
@@ -344,6 +353,9 @@ class ode(object):
 
     """
 
+    # generic type compatibility with scipy-stubs
+    __class_getitem__ = classmethod(types.GenericAlias)
+
     def __init__(self, f, jac=None):
         self.stiff = 0
         self.f = f
@@ -376,15 +388,15 @@ class ode(object):
         ----------
         name : str
             Name of the integrator.
-        integrator_params
+        **integrator_params
             Additional parameters for the integrator.
         """
         integrator = find_integrator(name)
         if integrator is None:
             # FIXME: this really should be raise an exception. Will that break
             # any code?
-            warnings.warn('No integrator name match with %r or is not '
-                          'available.' % name)
+            message = f'No integrator name match with {name!r} or is not available.'
+            warnings.warn(message, stacklevel=2)
         else:
             self._integrator = integrator(**integrator_params)
             if not len(self._y):
@@ -430,9 +442,11 @@ class ode(object):
             self._y, self.t = mth(self.f, self.jac or (lambda: None),
                                   self._y, self.t, t,
                                   self.f_params, self.jac_params)
-        except SystemError:
+        except SystemError as e:
             # f2py issue with tuple returns, see ticket 1187.
-            raise ValueError('Function to integrate must not return a tuple.')
+            raise ValueError(
+                'Function to integrate must not return a tuple.'
+            ) from e
 
         return self._y
 
@@ -448,7 +462,7 @@ class ode(object):
         """Extracts the return code for the integration to enable better control
         if the integration fails.
 
-        In general, a return code > 0 implies success while a return code < 0
+        In general, a return code > 0 implies success, while a return code < 0
         implies failure.
 
         Notes
@@ -554,7 +568,7 @@ class ode(object):
         solout : callable
             ``solout(t, y)`` is called at each internal integrator step,
             t is a scalar providing the current independent position
-            y is the current soloution ``y.shape == (n,)``
+            y is the current solution ``y.shape == (n,)``
             solout should return -1 to stop integration
             otherwise it should return None or 0
 
@@ -667,7 +681,7 @@ class complex_ode(ode):
         ----------
         name : str
             Name of the integrator
-        integrator_params
+        **integrator_params
             Additional parameters for the integrator.
         """
         if name == 'zvode':
@@ -731,7 +745,7 @@ class complex_ode(ode):
         solout : callable
             ``solout(t, y)`` is called at each internal integrator step,
             t is a scalar providing the current independent position
-            y is the current soloution ``y.shape == (n,)``
+            y is the current solution ``y.shape == (n,)``
             solout should return -1 to stop integration
             otherwise it should return None or 0
 
@@ -739,8 +753,8 @@ class complex_ode(ode):
         if self._integrator.supports_solout:
             self._integrator.set_solout(solout, complex=True)
         else:
-            raise TypeError("selected integrator does not support solouta,"
-                            + "choose another one")
+            raise TypeError("selected integrator does not support solouta, "
+                            "choose another one")
 
 
 # ------------------------------------------------------------------------------
@@ -762,14 +776,13 @@ class IntegratorConcurrencyError(RuntimeError):
     """
 
     def __init__(self, name):
-        msg = ("Integrator `%s` can be used to solve only a single problem "
-               "at a time. If you want to integrate multiple problems, "
-               "consider using a different integrator "
-               "(see `ode.set_integrator`)") % name
+        msg = (f"Integrator `{name}` can be used to solve only a single problem "
+                "at a time. If you want to integrate multiple problems, "
+                "consider using a different integrator (see `ode.set_integrator`)")
         RuntimeError.__init__(self, msg)
 
 
-class IntegratorBase(object):
+class IntegratorBase:
     runner = None  # runner is None => integrator is not available
     success = None  # success==1 if integrator was called successfully
     istate = None  # istate > 0 means success, istate < 0 means failure
@@ -778,6 +791,9 @@ class IntegratorBase(object):
     supports_solout = False
     integrator_classes = []
     scalar = float
+
+    # generic type compatibility with scipy-stubs
+    __class_getitem__ = classmethod(types.GenericAlias)
 
     def acquire_new_handle(self):
         # Some of the integrators have internal state (ancient
@@ -806,18 +822,18 @@ class IntegratorBase(object):
 
     def step(self, f, jac, y0, t0, t1, f_params, jac_params):
         """Make one integration step and return (y1,t1)."""
-        raise NotImplementedError('%s does not support step() method' %
-                                  self.__class__.__name__)
+        raise NotImplementedError(f'{self.__class__.__name__} '
+                                  'does not support step() method')
 
     def run_relax(self, f, jac, y0, t0, t1, f_params, jac_params):
         """Integrate from t=t0 to t>=t1 and return (y1,t)."""
-        raise NotImplementedError('%s does not support run_relax() method' %
-                                  self.__class__.__name__)
+        raise NotImplementedError(f'{self.__class__.__name__} '
+                                  'does not support run_relax() method')
 
     # XXX: __str__ method for getting visual state of the integrator
 
 
-def _vode_banded_jac_wrapper(jacfunc, ml, jac_params):
+def _banded_jac_wrapper(jacfunc, ml, jac_params):
     """
     Wrap a banded Jacobian function with a function that pads
     the Jacobian with `ml` rows of zeros.
@@ -864,7 +880,7 @@ class vode(IntegratorBase):
         elif re.match(method, r'bdf', re.I):
             self.meth = 2
         else:
-            raise ValueError('Unknown integration method %s' % method)
+            raise ValueError(f'Unknown integration method {method}')
         self.with_jacobian = with_jacobian
         self.rtol = rtol
         self.atol = atol
@@ -887,7 +903,7 @@ class vode(IntegratorBase):
         In the Fortran code, the legal values of `MF` are:
             10, 11, 12, 13, 14, 15, 20, 21, 22, 23, 24, 25,
             -11, -12, -14, -15, -21, -22, -24, -25
-        but this python wrapper does not use negative values.
+        but this Python wrapper does not use negative values.
 
         Returns
 
@@ -898,12 +914,12 @@ class vode(IntegratorBase):
             self.meth == 2:  method="bdf"
 
         miter is the correction iteration method:
-            miter == 0:  Functional iteraton; no Jacobian involved.
-            miter == 1:  Chord iteration with user-supplied full Jacobian
-            miter == 2:  Chord iteration with internally computed full Jacobian
-            miter == 3:  Chord iteration with internally computed diagonal Jacobian
-            miter == 4:  Chord iteration with user-supplied banded Jacobian
-            miter == 5:  Chord iteration with internally computed banded Jacobian
+            miter == 0:  Functional iteration; no Jacobian involved.
+            miter == 1:  Chord iteration with user-supplied full Jacobian.
+            miter == 2:  Chord iteration with internally computed full Jacobian.
+            miter == 3:  Chord iteration with internally computed diagonal Jacobian.
+            miter == 4:  Chord iteration with user-supplied banded Jacobian.
+            miter == 5:  Chord iteration with internally computed banded Jacobian.
 
         Side effects: If either self.mu or self.ml is not None and the other is None,
         then the one that is None is set to 0.
@@ -916,7 +932,7 @@ class vode(IntegratorBase):
             if self.ml is None:
                 self.ml = 0
 
-        # has_jac is True if the user provided a jacobian function.
+        # has_jac is True if the user provided a Jacobian function.
         if has_jac:
             if jac_is_banded:
                 miter = 4
@@ -929,11 +945,12 @@ class vode(IntegratorBase):
                 else:
                     miter = 5  # Chord iteration with internal banded Jacobian.
             else:
-                # self.with_jacobian is set by the user in the call to ode.set_integrator.
+                # self.with_jacobian is set by the user in
+                # the call to ode.set_integrator.
                 if self.with_jacobian:
                     miter = 2  # Chord iteration with internal full Jacobian.
                 else:
-                    miter = 0  # Functional iteraton; no Jacobian involved.
+                    miter = 0  # Functional iteration; no Jacobian involved.
 
         mf = 10 * self.meth + miter
         return mf
@@ -958,7 +975,7 @@ class vode(IntegratorBase):
         elif mf in [24, 25]:
             lrw = 22 + 11 * n + (3 * self.ml + 2 * self.mu) * n
         else:
-            raise ValueError('Unexpected mf=%s' % mf)
+            raise ValueError(f'Unexpected mf={mf}')
 
         if mf % 10 in [0, 3]:
             liw = 30
@@ -971,7 +988,7 @@ class vode(IntegratorBase):
         rwork[6] = self.min_step
         self.rwork = rwork
 
-        iwork = zeros((liw,), int32)
+        iwork = zeros((liw,), _vode_int_dtype)
         if self.ml is not None:
             iwork[0] = self.ml
         if self.mu is not None:
@@ -994,19 +1011,23 @@ class vode(IntegratorBase):
             self.acquire_new_handle()
 
         if self.ml is not None and self.ml > 0:
-            # Banded Jacobian.  Wrap the user-provided function with one
+            # Banded Jacobian. Wrap the user-provided function with one
             # that pads the Jacobian array with the extra `self.ml` rows
             # required by the f2py-generated wrapper.
-            jac = _vode_banded_jac_wrapper(jac, self.ml, jac_params)
+            jac = _banded_jac_wrapper(jac, self.ml, jac_params)
 
         args = ((f, jac, y0, t0, t1) + tuple(self.call_args) +
                 (f_params, jac_params))
-        y1, t, istate = self.runner(*args)
+
+        with VODE_LOCK:
+            y1, t, istate = self.runner(*args)
+
         self.istate = istate
         if istate < 0:
-            unexpected_istate_msg = 'Unexpected istate={:d}'.format(istate)
-            warnings.warn('{:s}: {:s}'.format(self.__class__.__name__,
-                          self.messages.get(istate, unexpected_istate_msg)))
+            unexpected_istate_msg = f'Unexpected istate={istate:d}'
+            warnings.warn(f'{self.__class__.__name__:s}: '
+                          f'{self.messages.get(istate, unexpected_istate_msg):s}',
+                          stacklevel=2)
             self.success = 0
         else:
             self.call_args[3] = 2  # upgrade istate from 1 to 2
@@ -1039,6 +1060,8 @@ class zvode(vode):
     supports_step = 1
     scalar = complex
     active_global_handle = 0
+
+    __class_getitem__ = None
 
     def reset(self, n, has_jac):
         mf = self._determine_mf_and_set_bands(has_jac)
@@ -1084,7 +1107,7 @@ class zvode(vode):
         rwork[6] = self.min_step
         self.rwork = rwork
 
-        iwork = zeros((liw,), int32)
+        iwork = zeros((liw,), _vode_int_dtype)
         if self.ml is not None:
             iwork[0] = self.ml
         if self.mu is not None:
@@ -1110,12 +1133,14 @@ class dopri5(IntegratorBase):
     supports_solout = True
 
     messages = {1: 'computation successful',
-                2: 'comput. successful (interrupted by solout)',
+                2: 'computation successful (interrupted by solout)',
                 -1: 'input is not consistent',
                 -2: 'larger nsteps is needed',
                 -3: 'step size becomes too small',
                 -4: 'problem is probably stiff (interrupted)',
                 }
+
+    __class_getitem__ = None
 
     def __init__(self,
                  rtol=1e-6, atol=1e-12,
@@ -1159,7 +1184,7 @@ class dopri5(IntegratorBase):
         work[5] = self.max_step
         work[6] = self.first_step
         self.work = work
-        iwork = zeros((21,), int32)
+        iwork = zeros((21,), _dop_int_dtype)
         iwork[0] = self.nsteps
         iwork[2] = self.verbosity
         self.iwork = iwork
@@ -1172,9 +1197,10 @@ class dopri5(IntegratorBase):
                                           tuple(self.call_args) + (f_params,)))
         self.istate = istate
         if istate < 0:
-            unexpected_istate_msg = 'Unexpected istate={:d}'.format(istate)
-            warnings.warn('{:s}: {:s}'.format(self.__class__.__name__,
-                          self.messages.get(istate, unexpected_istate_msg)))
+            unexpected_istate_msg = f'Unexpected istate={istate:d}'
+            warnings.warn(f'{self.__class__.__name__:s}: '
+                          f'{self.messages.get(istate, unexpected_istate_msg):s}',
+                          stacklevel=2)
             self.success = 0
         return y, x
 
@@ -1207,10 +1233,8 @@ class dop853(dopri5):
                  method=None,
                  verbosity=-1,  # no messages if negative
                  ):
-        super(self.__class__, self).__init__(rtol, atol, nsteps, max_step,
-                                             first_step, safety, ifactor,
-                                             dfactor, beta, method,
-                                             verbosity)
+        super().__init__(rtol, atol, nsteps, max_step, first_step, safety,
+                         ifactor, dfactor, beta, method, verbosity)
 
     def reset(self, n, has_jac):
         work = zeros((11 * n + 21,), float)
@@ -1221,7 +1245,7 @@ class dop853(dopri5):
         work[5] = self.max_step
         work[6] = self.first_step
         self.work = work
-        iwork = zeros((21,), int32)
+        iwork = zeros((21,), _dop_int_dtype)
         iwork[0] = self.nsteps
         iwork[2] = self.verbosity
         self.iwork = iwork
@@ -1248,6 +1272,8 @@ class lsoda(IntegratorBase):
         -6: "Error weight became zero during problem.",
         -7: "Internal workspace insufficient to finish (internal error)."
     }
+
+    __class_getitem__ = None
 
     def __init__(self,
                  with_jacobian=False,
@@ -1308,7 +1334,7 @@ class lsoda(IntegratorBase):
         elif jt in [4, 5]:
             lrs = 22 + (self.max_order_s + 5 + 2 * self.ml + self.mu) * n
         else:
-            raise ValueError('Unexpected jt=%s' % jt)
+            raise ValueError(f'Unexpected jt={jt}')
         lrw = max(lrn, lrs)
         liw = 20 + n
         rwork = zeros((lrw,), float)
@@ -1316,7 +1342,7 @@ class lsoda(IntegratorBase):
         rwork[5] = self.max_step
         rwork[6] = self.min_step
         self.rwork = rwork
-        iwork = zeros((liw,), int32)
+        iwork = zeros((liw,), _lsoda_int_dtype)
         if self.ml is not None:
             iwork[0] = self.ml
         if self.mu is not None:
@@ -1338,14 +1364,25 @@ class lsoda(IntegratorBase):
         else:
             self.initialized = True
             self.acquire_new_handle()
+
+        if jac is not None and self.ml is not None and self.ml > 0:
+            # Banded Jacobian. Wrap the user-provided function with one
+            # that pads the Jacobian array with the extra `self.ml` rows
+            # required by the f2py-generated wrapper.
+            jac = _banded_jac_wrapper(jac, self.ml, jac_params)
+
         args = [f, y0, t0, t1] + self.call_args[:-1] + \
                [jac, self.call_args[-1], f_params, 0, jac_params]
-        y1, t, istate = self.runner(*args)
+
+        with LSODA_LOCK:
+            y1, t, istate = self.runner(*args)
+
         self.istate = istate
         if istate < 0:
-            unexpected_istate_msg = 'Unexpected istate={:d}'.format(istate)
-            warnings.warn('{:s}: {:s}'.format(self.__class__.__name__,
-                          self.messages.get(istate, unexpected_istate_msg)))
+            unexpected_istate_msg = f'Unexpected istate={istate:d}'
+            warnings.warn(f'{self.__class__.__name__:s}: '
+                          f'{self.messages.get(istate, unexpected_istate_msg):s}',
+                          stacklevel=2)
             self.success = 0
         else:
             self.call_args[3] = 2  # upgrade istate from 1 to 2

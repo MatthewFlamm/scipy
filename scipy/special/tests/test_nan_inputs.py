@@ -1,19 +1,19 @@
 """Test how the ufuncs in special handle nan inputs.
 
 """
-from __future__ import division, print_function, absolute_import
+import warnings
+
+from collections.abc import Callable
 
 import numpy as np
 from numpy.testing import assert_array_equal, assert_
 import pytest
-
 import scipy.special as sc
-from scipy._lib._numpy_compat import suppress_warnings
 
 
-KNOWNFAILURES = {}
+KNOWNFAILURES: dict[str, Callable] = {}
 
-POSTPROCESSING = {}
+POSTPROCESSING: dict[str, Callable] = {}
 
 
 def _get_ufuncs():
@@ -40,25 +40,33 @@ UFUNCS, UFUNC_NAMES = _get_ufuncs()
 @pytest.mark.parametrize("func", UFUNCS, ids=UFUNC_NAMES)
 def test_nan_inputs(func):
     args = (np.nan,)*func.nin
-    with suppress_warnings() as sup:
+    with warnings.catch_warnings():
         # Ignore warnings about unsafe casts from legacy wrappers
-        sup.filter(RuntimeWarning,
-                   "floating point number truncated to an integer")
+        warnings.filterwarnings(
+            "ignore",
+            "floating point number truncated to an integer",
+            RuntimeWarning
+        )
         try:
-            res = func(*args)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                res = func(*args)
         except TypeError:
             # One of the arguments doesn't take real inputs
             return
     if func in POSTPROCESSING:
         res = POSTPROCESSING[func](*res)
 
-    msg = "got {} instead of nan".format(res)
+    msg = f"got {res} instead of nan"
     assert_array_equal(np.isnan(res), True, err_msg=msg)
 
 
 def test_legacy_cast():
-    with suppress_warnings() as sup:
-        sup.filter(RuntimeWarning,
-                   "floating point number truncated to an integer")
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            "floating point number truncated to an integer",
+            RuntimeWarning
+        )
         res = sc.bdtrc(np.nan, 1, 0.5)
         assert_(np.isnan(res))

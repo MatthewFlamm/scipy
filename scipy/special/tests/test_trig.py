@@ -1,15 +1,11 @@
-from __future__ import division, print_function, absolute_import
+import warnings
 
-import sys
-
+import pytest
 import numpy as np
 from numpy.testing import assert_equal, assert_allclose
-import pytest
 
 from scipy.special._ufuncs import _sinpi as sinpi
 from scipy.special._ufuncs import _cospi as cospi
-
-from scipy._lib._numpy_compat import suppress_warnings
 
 
 def test_integer_real_part():
@@ -36,6 +32,7 @@ def test_half_integer_real_part():
     assert_equal(res.real, 0.0)
 
 
+@pytest.mark.skip("Temporary skip while gh-19526 is being resolved")
 def test_intermediate_overlow():
     # Make sure we avoid overflow in situations where cosh/sinh would
     # overflow but the product with sin/cos would not
@@ -46,23 +43,25 @@ def test_intermediate_overlow():
     sinpi_std = [complex(-8.113438309924894e+295, -np.inf),
                  complex(1.9507801934611995e+306, np.inf),
                  complex(2.205958493464539e+306, np.inf)]
-    with suppress_warnings() as sup:
-        sup.filter(RuntimeWarning, "invalid value encountered in multiply")
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", "invalid value encountered in multiply", RuntimeWarning)
         for p, std in zip(sinpi_pts, sinpi_std):
-            assert_allclose(sinpi(p), std)
+            res = sinpi(p)
+            assert_allclose(res.real, std.real)
+            assert_allclose(res.imag, std.imag)
 
     # Test for cosine, less interesting because cos(0) = 1.
     p = complex(0.5 + 1e-14, 227)
     std = complex(-8.113438309924894e+295, -np.inf)
-    with suppress_warnings() as sup:
-        sup.filter(RuntimeWarning, "invalid value encountered in multiply")
-        assert_allclose(cospi(p), std)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", "invalid value encountered in multiply", RuntimeWarning)
+        res = cospi(p)
+        assert_allclose(res.real, std.real)
+        assert_allclose(res.imag, std.imag)
 
 
-@pytest.mark.xfail('win32' in sys.platform
-                   and np.intp(0).itemsize < 8
-                   and sys.version_info < (3, 5),
-                   reason="fails on 32-bit Windows with old MSVC")
 def test_zero_sign():
     y = sinpi(-0.0)
     assert y == 0.0

@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, print_function, absolute_import
-
 from numpy import abs, asarray, cos, exp, arange, pi, sin, sqrt, sum
 from .go_benchmark import Benchmark
 
@@ -30,7 +27,8 @@ class Easom(Benchmark):
     For Global Optimization Problems Int. Journal of Mathematical Modelling
     and Numerical Optimisation, 2013, 4, 150-194.
 
-    TODO Gavana website disagrees with Jamil, etc. Gavana equation in docstring is totally wrong.
+    TODO Gavana website disagrees with Jamil, etc.
+    Gavana equation in docstring is totally wrong.
     """
 
     def __init__(self, dimensions=2):
@@ -164,6 +162,7 @@ class EggHolder(Benchmark):
 
     TODO: Jamil is missing a minus sign on the fglob value
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -173,7 +172,6 @@ class EggHolder(Benchmark):
 
         self.global_optimum = [[512.0, 404.2319]]
         self.fglob = -959.640662711
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1
@@ -290,6 +288,7 @@ class Exponential(Benchmark):
 
     TODO Jamil are missing a minus sign on fglob
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -298,7 +297,6 @@ class Exponential(Benchmark):
 
         self.global_optimum = [[0.0 for _ in range(self.N)]]
         self.fglob = -1.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1

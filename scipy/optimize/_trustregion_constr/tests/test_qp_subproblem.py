@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_array
 from scipy.optimize._trustregion_constr.qp_subproblem \
     import (eqp_kktfact,
             projected_cg,
@@ -9,11 +9,7 @@ from scipy.optimize._trustregion_constr.qp_subproblem \
             modified_dogleg)
 from scipy.optimize._trustregion_constr.projections \
     import projections
-from numpy.testing import (TestCase, assert_array_almost_equal,
-                           assert_array_equal, assert_array_less,
-                           assert_equal, assert_,
-                           run_module_suite, assert_allclose, assert_warns,
-                           dec)
+from numpy.testing import TestCase, assert_array_almost_equal, assert_equal
 import pytest
 
 
@@ -22,11 +18,11 @@ class TestEQPDirectFactorization(TestCase):
     # From Example 16.2 Nocedal/Wright "Numerical
     # Optimization" p.452.
     def test_nocedal_example(self):
-        H = csc_matrix([[6, 2, 1],
-                        [2, 5, 2],
-                        [1, 2, 4]])
-        A = csc_matrix([[1, 0, 1],
-                        [0, 1, 1]])
+        H = csc_array([[6, 2, 1],
+                       [2, 5, 2],
+                       [1, 2, 4]])
+        A = csc_array([[1, 0, 1],
+                       [0, 1, 1]])
         c = np.array([-8, -3, -3])
         b = -np.array([3, 0])
         x, lagrange_multipliers = eqp_kktfact(H, c, A, b)
@@ -37,7 +33,7 @@ class TestEQPDirectFactorization(TestCase):
 class TestSphericalBoundariesIntersections(TestCase):
 
     def test_2d_sphere_constraints(self):
-        # Interior inicial point
+        # Interior initial point
         ta, tb, intersect = sphere_intersections([0, 0],
                                                  [1, 0], 0.5)
         assert_array_almost_equal([ta, tb], [0, 0.5])
@@ -48,25 +44,25 @@ class TestSphericalBoundariesIntersections(TestCase):
                                                  [0, 1], 1)
         assert_equal(intersect, False)
 
-        # Outside inicial point pointing toward outside the circle
+        # Outside initial point pointing toward outside the circle
         ta, tb, intersect = sphere_intersections([2, 0],
                                                  [1, 0], 1)
         assert_equal(intersect, False)
 
-        # Outside inicial point pointing toward inside the circle
+        # Outside initial point pointing toward inside the circle
         ta, tb, intersect = sphere_intersections([2, 0],
                                                  [-1, 0], 1.5)
         assert_array_almost_equal([ta, tb], [0.5, 1])
         assert_equal(intersect, True)
 
-        # Inicial point on the boundary
+        # Initial point on the boundary
         ta, tb, intersect = sphere_intersections([2, 0],
                                                  [1, 0], 2)
         assert_array_almost_equal([ta, tb], [0, 0])
         assert_equal(intersect, True)
 
     def test_2d_sphere_constraints_line_intersections(self):
-        # Interior inicial point
+        # Interior initial point
         ta, tb, intersect = sphere_intersections([0, 0],
                                                  [1, 0], 0.5,
                                                  entire_line=True)
@@ -79,21 +75,21 @@ class TestSphericalBoundariesIntersections(TestCase):
                                                  entire_line=True)
         assert_equal(intersect, False)
 
-        # Outside inicial point pointing toward outside the circle
+        # Outside initial point pointing toward outside the circle
         ta, tb, intersect = sphere_intersections([2, 0],
                                                  [1, 0], 1,
                                                  entire_line=True)
         assert_array_almost_equal([ta, tb], [-3, -1])
         assert_equal(intersect, True)
 
-        # Outside inicial point pointing toward inside the circle
+        # Outside initial point pointing toward inside the circle
         ta, tb, intersect = sphere_intersections([2, 0],
                                                  [-1, 0], 1.5,
                                                  entire_line=True)
         assert_array_almost_equal([ta, tb], [0.5, 3.5])
         assert_equal(intersect, True)
 
-        # Inicial point on the boundary
+        # Initial point on the boundary
         ta, tb, intersect = sphere_intersections([2, 0],
                                                  [1, 0], 2,
                                                  entire_line=True)
@@ -128,7 +124,7 @@ class TestBoxBoundariesIntersections(TestCase):
         assert_array_almost_equal([ta, tb], [1, 1])
         assert_equal(intersect, True)
 
-        # Interior inicial pointoint
+        # Interior initial point
         ta, tb, intersect = box_intersections([0, 0], [4, 4],
                                               [-2, -3], [3, 2])
         assert_array_almost_equal([ta, tb], [0, 0.5])
@@ -152,7 +148,7 @@ class TestBoxBoundariesIntersections(TestCase):
                                                          [1, 1], [3, 3])
         assert_equal(intersect, False)
 
-        # Inicial point on the boundary
+        # Initial point on the boundary
         ta, tb, intersect = box_intersections([2, 2], [0, 1],
                                               [-2, -2], [2, 2])
         assert_array_almost_equal([ta, tb], [0, 0])
@@ -188,7 +184,7 @@ class TestBoxBoundariesIntersections(TestCase):
         assert_array_almost_equal([ta, tb], [1, 3])
         assert_equal(intersect, True)
 
-        # Interior inicial pointoint
+        # Interior initial point
         ta, tb, intersect = box_intersections([0, 0], [4, 4],
                                               [-2, -3], [3, 2],
                                               entire_line=True)
@@ -218,7 +214,7 @@ class TestBoxBoundariesIntersections(TestCase):
                                               entire_line=True)
         assert_equal(intersect, False)
 
-        # Inicial point on the boundary
+        # Initial point on the boundary
         ta, tb, intersect = box_intersections([2, 2], [0, 1],
                                               [-2, -2], [2, 2],
                                               entire_line=True)
@@ -237,7 +233,7 @@ class TestBoxBoundariesIntersections(TestCase):
                                               [1, 1, 1], [3, 3, 3])
         assert_equal(intersect, False)
 
-        # Interior Point
+        # Interior point
         ta, tb, intersect = box_intersections([2, 2, 2], [0, -1, 1],
                                               [1, 1, 1], [3, 3, 3])
         assert_array_almost_equal([ta, tb], [0, 1])
@@ -258,7 +254,7 @@ class TestBoxBoundariesIntersections(TestCase):
         assert_array_almost_equal([ta, tb], [-3, -1])
         assert_equal(intersect, True)
 
-        # Interior Point
+        # Interior point
         ta, tb, intersect = box_intersections([2, 2, 2], [0, -1, 1],
                                               [1, 1, 1], [3, 3, 3],
                                               entire_line=True)
@@ -283,14 +279,14 @@ class TestBoxSphereBoundariesIntersections(TestCase):
         assert_array_almost_equal([ta, tb], [0, 1])
         assert_equal(intersect, True)
 
-        # Box Constraints are active
+        # Box constraints are active
         ta, tb, intersect = box_sphere_intersections([1, 1], [-4, 4],
                                                      [-1, -3], [1, 3], 10,
                                                      entire_line=False)
         assert_array_almost_equal([ta, tb], [0, 0.5])
         assert_equal(intersect, True)
 
-        # Spherical Constraints are active
+        # Spherical constraints are active
         ta, tb, intersect = box_sphere_intersections([1, 1], [-4, 4],
                                                      [-1, -3], [1, 3], 2,
                                                      entire_line=False)
@@ -322,14 +318,14 @@ class TestBoxSphereBoundariesIntersections(TestCase):
         assert_array_almost_equal([ta, tb], [0, 2])
         assert_equal(intersect, True)
 
-        # Box Constraints are active
+        # Box constraints are active
         ta, tb, intersect = box_sphere_intersections([1, 1], [-4, 4],
                                                      [-1, -3], [1, 3], 10,
                                                      entire_line=True)
         assert_array_almost_equal([ta, tb], [0, 0.5])
         assert_equal(intersect, True)
 
-        # Spherical Constraints are active
+        # Spherical constraints are active
         ta, tb, intersect = box_sphere_intersections([1, 1], [-4, 4],
                                                      [-1, -3], [1, 3], 2,
                                                      entire_line=True)
@@ -363,7 +359,7 @@ class TestModifiedDogleg(TestCase):
         x = modified_dogleg(A, Y, b, 1, [-np.inf, -np.inf], [np.inf, np.inf])
         assert_array_almost_equal(x, newton_point/np.linalg.norm(newton_point))
 
-        # Box Constraints active
+        # Box constraints active
         x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf], [0.1, np.inf])
         assert_array_almost_equal(x, (newton_point/newton_point[0]) * 0.1)
 
@@ -383,7 +379,7 @@ class TestModifiedDogleg(TestCase):
         assert_array_almost_equal(x, newton_point)
 
         # line between cauchy_point and newton_point contains best point
-        # (spherical constrain is active).
+        # (spherical constraint is active).
         x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf, -np.inf],
                             [np.inf, np.inf, np.inf])
         z = cauchy_point
@@ -393,7 +389,7 @@ class TestModifiedDogleg(TestCase):
         assert_array_almost_equal(np.linalg.norm(x), 2)
 
         # line between cauchy_point and newton_point contains best point
-        # (box constrain is active).
+        # (box constraint is active).
         x = modified_dogleg(A, Y, b, 5, [-1, -np.inf, -np.inf],
                             [np.inf, np.inf, np.inf])
         z = cauchy_point
@@ -403,7 +399,7 @@ class TestModifiedDogleg(TestCase):
         assert_array_almost_equal(x[0], -1)
 
         # line between origin and cauchy_point contains best point
-        # (spherical constrain is active).
+        # (spherical constraint is active).
         x = modified_dogleg(A, Y, b, 1, [-np.inf, -np.inf, -np.inf],
                             [np.inf, np.inf, np.inf])
         z = origin
@@ -413,7 +409,7 @@ class TestModifiedDogleg(TestCase):
         assert_array_almost_equal(np.linalg.norm(x), 1)
 
         # line between origin and newton_point contains best point
-        # (box constrain is active).
+        # (box constraint is active).
         x = modified_dogleg(A, Y, b, 2, [-np.inf, -np.inf, -np.inf],
                             [np.inf, 1, np.inf])
         z = origin
@@ -428,11 +424,11 @@ class TestProjectCG(TestCase):
     # From Example 16.2 Nocedal/Wright "Numerical
     # Optimization" p.452.
     def test_nocedal_example(self):
-        H = csc_matrix([[6, 2, 1],
-                        [2, 5, 2],
-                        [1, 2, 4]])
-        A = csc_matrix([[1, 0, 1],
-                        [0, 1, 1]])
+        H = csc_array([[6, 2, 1],
+                       [2, 5, 2],
+                       [1, 2, 4]])
+        A = csc_array([[1, 0, 1],
+                       [0, 1, 1]])
         c = np.array([-8, -3, -3])
         b = -np.array([3, 0])
         Z, _, Y = projections(A)
@@ -442,12 +438,12 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x, [2, -1, 1])
 
     def test_compare_with_direct_fact(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
+        H = csc_array([[6, 2, 1, 3],
+                       [2, 5, 2, 4],
+                       [1, 2, 4, 5],
+                       [3, 4, 5, 7]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         Z, _, Y = projections(A)
@@ -458,12 +454,12 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x, x_kkt)
 
     def test_trust_region_infeasible(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
+        H = csc_array([[6, 2, 1, 3],
+                       [2, 5, 2, 4],
+                       [1, 2, 4, 5],
+                       [3, 4, 5, 7]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         trust_radius = 1
@@ -472,12 +468,12 @@ class TestProjectCG(TestCase):
             projected_cg(H, c, Z, Y, b, trust_radius=trust_radius)
 
     def test_trust_region_barely_feasible(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
+        H = csc_array([[6, 2, 1, 3],
+                       [2, 5, 2, 4],
+                       [1, 2, 4, 5],
+                       [3, 4, 5, 7]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         trust_radius = 2.32379000772445021283
@@ -491,12 +487,12 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x, -Y.dot(b))
 
     def test_hits_boundary(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
+        H = csc_array([[6, 2, 1, 3],
+                       [2, 5, 2, 4],
+                       [1, 2, 4, 5],
+                       [3, 4, 5, 7]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         trust_radius = 3
@@ -509,12 +505,12 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(np.linalg.norm(x), trust_radius)
 
     def test_negative_curvature_unconstrained(self):
-        H = csc_matrix([[1, 2, 1, 3],
-                        [2, 0, 2, 4],
-                        [1, 2, 0, 2],
-                        [3, 4, 2, 0]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 0, 1]])
+        H = csc_array([[1, 2, 1, 3],
+                       [2, 0, 2, 4],
+                       [1, 2, 0, 2],
+                       [3, 4, 2, 0]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 0, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         Z, _, Y = projections(A)
@@ -522,12 +518,12 @@ class TestProjectCG(TestCase):
             projected_cg(H, c, Z, Y, b, tol=0)
 
     def test_negative_curvature(self):
-        H = csc_matrix([[1, 2, 1, 3],
-                        [2, 0, 2, 4],
-                        [1, 2, 0, 2],
-                        [3, 4, 2, 0]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 0, 1]])
+        H = csc_array([[1, 2, 1, 3],
+                       [2, 0, 2, 4],
+                       [1, 2, 0, 2],
+                       [3, 4, 2, 0]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 0, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         Z, _, Y = projections(A)
@@ -542,12 +538,12 @@ class TestProjectCG(TestCase):
     # The box constraints are inactive at the solution but
     # are active during the iterations.
     def test_inactive_box_constraints(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
+        H = csc_array([[6, 2, 1, 3],
+                       [2, 5, 2, 4],
+                       [1, 2, 4, 5],
+                       [3, 4, 5, 7]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         Z, _, Y = projections(A)
@@ -562,14 +558,14 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x, x_kkt)
 
     # The box constraints active and the termination is
-    # by maximum iterations (infeasible iteraction).
+    # by maximum iterations (infeasible interaction).
     def test_active_box_constraints_maximum_iterations_reached(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
+        H = csc_array([[6, 2, 1, 3],
+                       [2, 5, 2, 4],
+                       [1, 2, 4, 5],
+                       [3, 4, 5, 7]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         Z, _, Y = projections(A)
@@ -584,14 +580,14 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x[0], 0.8)
 
     # The box constraints are active and the termination is
-    # because it hits boundary (without infeasible iteraction).
+    # because it hits boundary (without infeasible interaction).
     def test_active_box_constraints_hits_boundaries(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
+        H = csc_array([[6, 2, 1, 3],
+                       [2, 5, 2, 4],
+                       [1, 2, 4, 5],
+                       [3, 4, 5, 7]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         trust_radius = 3
@@ -606,14 +602,14 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x[2], 1.6)
 
     # The box constraints are active and the termination is
-    # because it hits boundary (infeasible iteraction).
+    # because it hits boundary (infeasible interaction).
     def test_active_box_constraints_hits_boundaries_infeasible_iter(self):
-        H = csc_matrix([[6, 2, 1, 3],
-                        [2, 5, 2, 4],
-                        [1, 2, 4, 5],
-                        [3, 4, 5, 7]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 1, 1]])
+        H = csc_array([[6, 2, 1, 3],
+                       [2, 5, 2, 4],
+                       [1, 2, 4, 5],
+                       [3, 4, 5, 7]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 1, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         trust_radius = 4
@@ -628,14 +624,14 @@ class TestProjectCG(TestCase):
         assert_array_almost_equal(x[1], 0.1)
 
     # The box constraints are active and the termination is
-    # because it hits boundary (no infeasible iteraction).
+    # because it hits boundary (no infeasible interaction).
     def test_active_box_constraints_negative_curvature(self):
-        H = csc_matrix([[1, 2, 1, 3],
-                        [2, 0, 2, 4],
-                        [1, 2, 0, 2],
-                        [3, 4, 2, 0]])
-        A = csc_matrix([[1, 0, 1, 0],
-                        [0, 1, 0, 1]])
+        H = csc_array([[1, 2, 1, 3],
+                       [2, 0, 2, 4],
+                       [1, 2, 0, 2],
+                       [3, 4, 2, 0]])
+        A = csc_array([[1, 0, 1, 0],
+                       [0, 1, 0, 1]])
         c = np.array([-2, -3, -3, 1])
         b = -np.array([3, 0])
         Z, _, Y = projections(A)

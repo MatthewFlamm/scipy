@@ -18,23 +18,25 @@ References
 """
 # Author: Matt Haberland
 
-from __future__ import print_function, division, absolute_import
 import numpy as np
 import scipy as sp
 import scipy.sparse as sps
-import numbers
 from warnings import warn
 from scipy.linalg import LinAlgError
-from .optimize import OptimizeWarning, OptimizeResult, _check_unknown_options
+from ._optimize import OptimizeWarning, OptimizeResult, _check_unknown_options
 from ._linprog_util import _postsolve
 has_umfpack = True
 has_cholmod = True
 try:
-    from sksparse.cholmod import cholesky as cholmod
+    import sksparse  # noqa: F401
+    from sksparse.cholmod import cholesky as cholmod  # noqa: F401
+    from sksparse.cholmod import analyze as cholmod_analyze
+    from sksparse.cholmod import CholmodTypeConversionWarning
+    from warnings import catch_warnings
 except ImportError:
     has_cholmod = False
 try:
-    import scikits.umfpack  # test whether to use factorized
+    import scikits.umfpack  # test whether to use factorized  # noqa: F401
 except ImportError:
     has_umfpack = False
 
@@ -47,7 +49,7 @@ def _get_solver(M, sparse=False, lstsq=False, sym_pos=True,
 
     Parameters
     ----------
-    M : 2D array
+    M : 2-D array
         As defined in [4] Equation 8.31
     sparse : bool (default = False)
         True if the system to be solved is sparse. This is typically set
@@ -87,7 +89,27 @@ def _get_solver(M, sparse=False, lstsq=False, sym_pos=True,
                 def solve(r, sym_pos=False):
                     return sps.linalg.lsqr(M, r)[0]
             elif cholesky:
-                solve = cholmod(M)
+                # TODO: revert this suppress_warning once the warning bug fix in
+                # sksparse is merged/released
+                # Suppress spurious warning bug from sksparse with csc_array gh-22089
+                # try:
+                #     # Will raise an exception in the first call,
+                #     # or when the matrix changes due to a new problem
+                #     _get_solver.cholmod_factor.cholesky_inplace(M)
+                # except Exception:
+                #     _get_solver.cholmod_factor = cholmod_analyze(M)
+                #     _get_solver.cholmod_factor.cholesky_inplace(M)
+                with catch_warnings(
+                    action='ignore', category=CholmodTypeConversionWarning
+                ):
+                    try:
+                        # Will raise an exception in the first call,
+                        # or when the matrix changes due to a new problem
+                        _get_solver.cholmod_factor.cholesky_inplace(M)
+                    except Exception:
+                        _get_solver.cholmod_factor = cholmod_analyze(M)
+                        _get_solver.cholmod_factor.cholesky_inplace(M)
+                solve = _get_solver.cholmod_factor
             else:
                 if has_umfpack and sym_pos:
                     solve = sps.linalg.factorized(M)
@@ -107,7 +129,10 @@ def _get_solver(M, sparse=False, lstsq=False, sym_pos=True,
                 # this seems to cache the matrix factorization, so solving
                 # with multiple right hand sides is much faster
                 def solve(r, sym_pos=sym_pos):
-                    return sp.linalg.solve(M, r, sym_pos=sym_pos)
+                    if sym_pos:
+                        return sp.linalg.solve(M, r, assume_a="pos")
+                    else:
+                        return sp.linalg.solve(M, r)
     # There are many things that can go wrong here, and it's hard to say
     # what all of them are. It doesn't really matter: if the matrix can't be
     # factorized, return None. get_solver will be called again with different
@@ -189,7 +214,7 @@ def _get_delta(A, b, c, x, y, z, tau, kappa, gamma, eta, sparse=False,
     if A.shape[0] == 0:
         # If there are no constraints, some solvers fail (understandably)
         # rather than returning empty solution. This gets the job done.
-        sparse, lstsq, sym_pos, cholesky = False, False, True, False
+        lstsq, sym_pos, cholesky = False, True, False
     n_x = len(x)
 
     # [4] Equation 8.8
@@ -202,7 +227,7 @@ def _get_delta(A, b, c, x, y, z, tau, kappa, gamma, eta, sparse=False,
     Dinv = x / z
 
     if sparse:
-        M = A.dot(sps.diags(Dinv, 0, format="csc").dot(A.T))
+        M = A.dot(sps.diags_array(Dinv, format="csc").dot(A.T))
     else:
         M = A.dot(Dinv.reshape(-1, 1) * A.T)
     solve = _get_solver(M, sparse, lstsq, sym_pos, cholesky, permc_spec)
@@ -218,29 +243,20 @@ def _get_delta(A, b, c, x, y, z, tau, kappa, gamma, eta, sparse=False,
         # Reference [4] Eq. 8.6
         rhatp = eta(gamma) * r_P
         rhatd = eta(gamma) * r_D
-        rhatg = np.array(eta(gamma) * r_G).reshape((1,))
+        rhatg = eta(gamma) * r_G
 
         # Reference [4] Eq. 8.7
         rhatxs = gamma * mu - x * z
-        rhattk = np.array(gamma * mu - tau * kappa).reshape((1,))
+        rhattk = gamma * mu - tau * kappa
 
         if i == 1:
             if ip:  # if the correction is to get "initial point"
                 # Reference [4] Eq. 8.23
                 rhatxs = ((1 - alpha) * gamma * mu -
                           x * z - alpha**2 * d_x * d_z)
-                rhattk = np.array(
-                    (1 -
-                     alpha) *
-                    gamma *
-                    mu -
-                    tau *
-                    kappa -
-                    alpha**2 *
-                    d_tau *
-                    d_kappa).reshape(
-                    (1,
-                     ))
+                rhattk = ((1 - alpha) * gamma * mu -
+                    tau * kappa -
+                    alpha**2 * d_tau * d_kappa)
             else:  # if the correction is for "predictor-corrector"
                 # Reference [4] Eq. 8.13
                 rhatxs -= d_x * d_z
@@ -259,7 +275,7 @@ def _get_delta(A, b, c, x, y, z, tau, kappa, gamma, eta, sparse=False,
         # 3. scipy.sparse.linalg.splu
         # 4. scipy.sparse.linalg.lsqr
         solved = False
-        while(not solved):
+        while not solved:
             try:
                 # [4] Equation 8.28
                 p, q = _sym_solve(Dinv, A, c, b, solve)
@@ -568,13 +584,13 @@ def _ip_hsd(A, b, c, c0, alpha0, beta, maxiter, disp, tol, sparse, lstsq,
 
     Parameters
     ----------
-    A : 2D array
-        2D array such that ``A @ x``, gives the values of the equality
+    A : 2-D array
+        2-D array such that ``A @ x``, gives the values of the equality
         constraints at ``x``.
-    b : 1D array
-        1D array of values representing the RHS of each equality constraint
+    b : 1-D array
+        1-D array of values representing the RHS of each equality constraint
         (row) in ``A`` (for standard form problem).
-    c : 1D array
+    c : 1-D array
         Coefficients of the linear objective function to be minimized (for
         standard form problem).
     c0 : float
@@ -635,7 +651,7 @@ def _ip_hsd(A, b, c, c0, alpha0, beta, maxiter, disp, tol, sparse, lstsq,
         iteration of the algorithm. The callback function must accept a single
         `scipy.optimize.OptimizeResult` consisting of the following fields:
 
-            x : 1D array
+            x : 1-D array
                 Current solution vector
             fun : float
                 Current value of the objective function
@@ -643,11 +659,11 @@ def _ip_hsd(A, b, c, c0, alpha0, beta, maxiter, disp, tol, sparse, lstsq,
                 True only when an algorithm has completed successfully,
                 so this is always False as the callback function is called
                 only while the algorithm is still iterating.
-            slack : 1D array
+            slack : 1-D array
                 The values of the slack variables. Each slack variable
                 corresponds to an inequality constraint. If the slack is zero,
                 the corresponding constraint is active.
-            con : 1D array
+            con : 1-D array
                 The (nominally zero) residuals of the equality constraints,
                 that is, ``b - A_eq @ x``
             phase : int
@@ -711,8 +727,7 @@ def _ip_hsd(A, b, c, c0, alpha0, beta, maxiter, disp, tol, sparse, lstsq,
     if disp:
         _display_iter(rho_p, rho_d, rho_g, "-", rho_mu, obj, header=True)
     if callback is not None:
-        x_o, fun, slack, con, _, _ = _postsolve(x/tau, postsolve_args,
-                                                tol=tol)
+        x_o, fun, slack, con = _postsolve(x/tau, postsolve_args)
         res = OptimizeResult({'x': x_o, 'fun': fun, 'slack': slack,
                               'con': con, 'nit': iteration, 'phase': 1,
                               'complete': False, 'status': 0,
@@ -723,10 +738,7 @@ def _ip_hsd(A, b, c, c0, alpha0, beta, maxiter, disp, tol, sparse, lstsq,
     message = "Optimization terminated successfully."
 
     if sparse:
-        A = sps.csc_matrix(A)
-        A.T = A.transpose()  # A.T is defined for sparse matrices but is slow
-        # Redefine it to avoid calculating again
-        # This is fine as long as A doesn't change
+        A = sps.csc_array(A)
 
     while go:
 
@@ -792,8 +804,7 @@ def _ip_hsd(A, b, c, c0, alpha0, beta, maxiter, disp, tol, sparse, lstsq,
         if disp:
             _display_iter(rho_p, rho_d, rho_g, alpha, rho_mu, obj)
         if callback is not None:
-            x_o, fun, slack, con, _, _ = _postsolve(x/tau, postsolve_args,
-                                                    tol=tol)
+            x_o, fun, slack, con = _postsolve(x/tau, postsolve_args)
             res = OptimizeResult({'x': x_o, 'fun': fun, 'slack': slack,
                                   'con': con, 'nit': iteration, 'phase': 1,
                                   'complete': False, 'status': 0,
@@ -841,18 +852,20 @@ def _linprog_ip(c, c0, A, b, callback, postsolve_args, maxiter=1000, tol=1e-8,
         A @ x == b
             x >= 0
 
+    User-facing documentation is in _linprog_doc.py.
+
     Parameters
     ----------
-    c : 1D array
+    c : 1-D array
         Coefficients of the linear objective function to be minimized.
     c0 : float
         Constant term in objective function due to fixed (and eliminated)
         variables. (Purely for display.)
-    A : 2D array
-        2D array such that ``A @ x``, gives the values of the equality
+    A : 2-D array
+        2-D array such that ``A @ x``, gives the values of the equality
         constraints at ``x``.
-    b : 1D array
-        1D array of values representing the right hand side of each equality
+    b : 1-D array
+        1-D array of values representing the right hand side of each equality
         constraint (row) in ``A``.
     callback : callable, optional
         Callback function to be executed once per iteration.
@@ -929,7 +942,7 @@ def _linprog_ip(c, c0, A, b, callback, postsolve_args, maxiter=1000, tol=1e-8,
 
     Returns
     -------
-    x : 1D array
+    x : 1-D array
         Solution vector.
     status : int
         An integer representing the exit status of the optimization::
@@ -992,7 +1005,8 @@ def _linprog_ip(c, c0, A, b, callback, postsolve_args, maxiter=1000, tol=1e-8,
 
     1. ``sksparse.cholmod.cholesky`` (if scikit-sparse and SuiteSparse are installed)
 
-    2. ``scipy.sparse.linalg.factorized`` (if scikit-umfpack and SuiteSparse are installed)
+    2. ``scipy.sparse.linalg.factorized``
+        (if scikit-umfpack and SuiteSparse are installed)
 
     3. ``scipy.sparse.linalg.splu`` (which uses SuperLU distributed with SciPy)
 
@@ -1006,7 +1020,7 @@ def _linprog_ip(c, c0, A, b, callback, postsolve_args, maxiter=1000, tol=1e-8,
     ``sym_pos=False`` skips to solver 3, and ``lstsq=True`` skips
     to solver 4 for both sparse and dense problems.
 
-    Potential improvements for combatting issues associated with dense
+    Potential improvements for combating issues associated with dense
     columns in otherwise sparse problems are outlined in [4]_ Section 5.3 and
     [10]_ Section 4.1-4.2; the latter also discusses the alleviation of
     accuracy issues associated with the substitution approach to free

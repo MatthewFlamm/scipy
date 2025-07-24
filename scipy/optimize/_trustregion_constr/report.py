@@ -1,15 +1,14 @@
 """Progress report printers."""
 
-
-class ReportBase(object):
-    COLUMN_NAMES = NotImplemented
-    COLUMN_WIDTHS = NotImplemented
-    ITERATION_FORMATS = NotImplemented
+class ReportBase:
+    COLUMN_NAMES: list[str] = NotImplemented
+    COLUMN_WIDTHS: list[int] = NotImplemented
+    ITERATION_FORMATS: list[str] = NotImplemented
 
     @classmethod
     def print_header(cls):
         fmt = ("|"
-               + "|".join(["{{:^{}}}".format(x) for x in cls.COLUMN_WIDTHS])
+               + "|".join([f"{{:^{x}}}" for x in cls.COLUMN_WIDTHS])
                + "|")
         separators = ['-' * x for x in cls.COLUMN_WIDTHS]
         print(fmt.format(*cls.COLUMN_NAMES))
@@ -17,7 +16,7 @@ class ReportBase(object):
 
     @classmethod
     def print_iteration(cls, *args):
-        iteration_format = ["{{:{}}}".format(x) for x in cls.ITERATION_FORMATS]
+        iteration_format = [f"{{:{x}}}" for x in cls.ITERATION_FORMATS]
         fmt = "|" + "|".join(iteration_format) + "|"
         print(fmt.format(*args))
 

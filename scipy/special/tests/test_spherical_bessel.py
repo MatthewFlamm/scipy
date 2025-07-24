@@ -1,7 +1,7 @@
 #
 # Tests of spherical Bessel functions.
 #
-from __future__ import division, print_function, absolute_import
+import warnings
 
 import numpy as np
 from numpy.testing import (assert_almost_equal, assert_allclose,
@@ -11,8 +11,6 @@ from numpy import sin, cos, sinh, cosh, exp, inf, nan, r_, pi
 
 from scipy.special import spherical_jn, spherical_yn, spherical_in, spherical_kn
 from scipy.integrate import quad
-
-from scipy._lib._numpy_compat import suppress_warnings
 
 
 class TestSphericalJn:
@@ -48,8 +46,9 @@ class TestSphericalJn:
         # https://dlmf.nist.gov/10.52.E3
         n = 7
         x = np.array([-inf + 0j, inf + 0j, inf*(1+1j)])
-        with suppress_warnings() as sup:
-            sup.filter(RuntimeWarning, "invalid value encountered in multiply")
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", "invalid value encountered in multiply", RuntimeWarning)
             assert_allclose(spherical_jn(n, x), np.array([0, 0, inf*(1+1j)]))
 
     def test_spherical_jn_large_arg_1(self):
@@ -105,8 +104,9 @@ class TestSphericalYn:
         # https://dlmf.nist.gov/10.52.E3
         n = 7
         x = np.array([-inf + 0j, inf + 0j, inf*(1+1j)])
-        with suppress_warnings() as sup:
-            sup.filter(RuntimeWarning, "invalid value encountered in multiply")
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", "invalid value encountered in multiply", RuntimeWarning)
             assert_allclose(spherical_yn(n, x), np.array([0, 0, inf*(1+1j)]))
 
     def test_spherical_yn_at_zero(self):
@@ -203,15 +203,19 @@ class TestSphericalKn:
         # https://dlmf.nist.gov/10.51.E4
         n = np.array([1, 2, 3, 7, 12])
         x = 0.12
-        assert_allclose((-1)**(n - 1)*spherical_kn(n - 1, x) - (-1)**(n + 1)*spherical_kn(n + 1,x),
-                        (-1)**n*(2*n + 1)/x*spherical_kn(n, x))
+        assert_allclose(
+            (-1)**(n - 1)*spherical_kn(n - 1, x) - (-1)**(n + 1)*spherical_kn(n + 1,x),
+            (-1)**n*(2*n + 1)/x*spherical_kn(n, x)
+        )
 
     def test_spherical_kn_recurrence_complex(self):
         # https://dlmf.nist.gov/10.51.E4
         n = np.array([1, 2, 3, 7, 12])
         x = 1.1 + 1.5j
-        assert_allclose((-1)**(n - 1)*spherical_kn(n - 1, x) - (-1)**(n + 1)*spherical_kn(n + 1,x),
-                        (-1)**n*(2*n + 1)/x*spherical_kn(n, x))
+        assert_allclose(
+            (-1)**(n - 1)*spherical_kn(n - 1, x) - (-1)**(n + 1)*spherical_kn(n + 1,x),
+            (-1)**n*(2*n + 1)/x*spherical_kn(n, x)
+        )
 
     def test_spherical_kn_inf_real(self):
         # https://dlmf.nist.gov/10.52.E6
@@ -286,9 +290,10 @@ class TestSphericalInDerivatives(SphericalDerivativesTestCase):
         return spherical_in(n, z, derivative=True)
 
     def test_spherical_in_d_zero(self):
-        n = np.array([1, 2, 3, 7, 15])
+        n = np.array([0, 1, 2, 3, 7, 15])
+        spherical_in(n, 0, derivative=False)
         assert_allclose(spherical_in(n, 0, derivative=True),
-                        np.zeros(5))
+                        np.array([0, 1/3, 0, 0, 0, 0]))
 
 
 class TestSphericalKnDerivatives(SphericalDerivativesTestCase):
@@ -380,4 +385,20 @@ class TestSphericalOld:
         assert_almost_equal(sy2,-4.9003329,5)
         sphpy = (spherical_yn(0, 0.2) - 2*spherical_yn(2, 0.2))/3
         sy3 = spherical_yn(1, 0.2, derivative=True)
-        assert_almost_equal(sy3,sphpy,4)  # compare correct derivative val. (correct =-system val).
+        # compare correct derivative val. (correct =-system val).
+        assert_almost_equal(sy3,sphpy,4)
+
+
+@pytest.mark.parametrize('derivative', [False, True])
+@pytest.mark.parametrize('fun', [spherical_jn, spherical_in,
+                                 spherical_yn, spherical_kn])
+def test_negative_real_gh14582(derivative, fun):
+    # gh-14582 reported that the spherical Bessel functions did not work
+    # with negative real argument `z`. Check that this is resolved.
+    rng = np.random.default_rng(3598435982345987234)
+    size = 25
+    n = rng.integers(0, 10, size=size)
+    z = rng.standard_normal(size=size)
+    res = fun(n, z, derivative=derivative)
+    ref = fun(n, z+0j, derivative=derivative)
+    np.testing.assert_allclose(res, ref.real)

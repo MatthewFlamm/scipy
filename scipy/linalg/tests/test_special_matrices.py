@@ -1,115 +1,21 @@
-from __future__ import division, print_function, absolute_import
-
+import pytest
 import numpy as np
-from numpy import arange, add, array, eye, copy, sqrt
+from numpy import arange, array, eye, copy, sqrt
 from numpy.testing import (assert_equal, assert_array_equal,
                            assert_array_almost_equal, assert_allclose)
 from pytest import raises as assert_raises
 
-from scipy._lib.six import xrange
-
 from scipy.fft import fft
 from scipy.special import comb
 from scipy.linalg import (toeplitz, hankel, circulant, hadamard, leslie, dft,
-                          companion, tri, triu, tril, kron, block_diag,
+                          companion, block_diag,
                           helmert, hilbert, invhilbert, pascal, invpascal,
-                          fiedler, fiedler_companion, eigvals)
+                          fiedler, fiedler_companion, eigvals,
+                          convolution_matrix)
 from numpy.linalg import cond
 
 
-def get_mat(n):
-    data = arange(n)
-    data = add.outer(data, data)
-    return data
-
-
-class TestTri(object):
-    def test_basic(self):
-        assert_equal(tri(4), array([[1, 0, 0, 0],
-                                    [1, 1, 0, 0],
-                                    [1, 1, 1, 0],
-                                    [1, 1, 1, 1]]))
-        assert_equal(tri(4, dtype='f'), array([[1, 0, 0, 0],
-                                               [1, 1, 0, 0],
-                                               [1, 1, 1, 0],
-                                               [1, 1, 1, 1]], 'f'))
-
-    def test_diag(self):
-        assert_equal(tri(4, k=1), array([[1, 1, 0, 0],
-                                         [1, 1, 1, 0],
-                                         [1, 1, 1, 1],
-                                         [1, 1, 1, 1]]))
-        assert_equal(tri(4, k=-1), array([[0, 0, 0, 0],
-                                         [1, 0, 0, 0],
-                                         [1, 1, 0, 0],
-                                         [1, 1, 1, 0]]))
-
-    def test_2d(self):
-        assert_equal(tri(4, 3), array([[1, 0, 0],
-                                       [1, 1, 0],
-                                       [1, 1, 1],
-                                       [1, 1, 1]]))
-        assert_equal(tri(3, 4), array([[1, 0, 0, 0],
-                                       [1, 1, 0, 0],
-                                       [1, 1, 1, 0]]))
-
-    def test_diag2d(self):
-        assert_equal(tri(3, 4, k=2), array([[1, 1, 1, 0],
-                                            [1, 1, 1, 1],
-                                            [1, 1, 1, 1]]))
-        assert_equal(tri(4, 3, k=-2), array([[0, 0, 0],
-                                             [0, 0, 0],
-                                             [1, 0, 0],
-                                             [1, 1, 0]]))
-
-
-class TestTril(object):
-    def test_basic(self):
-        a = (100*get_mat(5)).astype('l')
-        b = a.copy()
-        for k in range(5):
-            for l in range(k+1, 5):
-                b[k, l] = 0
-        assert_equal(tril(a), b)
-
-    def test_diag(self):
-        a = (100*get_mat(5)).astype('f')
-        b = a.copy()
-        for k in range(5):
-            for l in range(k+3, 5):
-                b[k, l] = 0
-        assert_equal(tril(a, k=2), b)
-        b = a.copy()
-        for k in range(5):
-            for l in range(max((k-1, 0)), 5):
-                b[k, l] = 0
-        assert_equal(tril(a, k=-2), b)
-
-
-class TestTriu(object):
-    def test_basic(self):
-        a = (100*get_mat(5)).astype('l')
-        b = a.copy()
-        for k in range(5):
-            for l in range(k+1, 5):
-                b[l, k] = 0
-        assert_equal(triu(a), b)
-
-    def test_diag(self):
-        a = (100*get_mat(5)).astype('f')
-        b = a.copy()
-        for k in range(5):
-            for l in range(max((k-1, 0)), 5):
-                b[l, k] = 0
-        assert_equal(triu(a, k=2), b)
-        b = a.copy()
-        for k in range(5):
-            for l in range(k+3, 5):
-                b[l, k] = 0
-        assert_equal(triu(a, k=-2), b)
-
-
-class TestToeplitz(object):
+class TestToeplitz:
 
     def test_basic(self):
         y = toeplitz([1, 2, 3])
@@ -156,7 +62,7 @@ class TestToeplitz(object):
         assert_array_equal(t, [[1, 2, 3]])
 
 
-class TestHankel(object):
+class TestHankel:
     def test_basic(self):
         y = hankel([1, 2, 3])
         assert_array_equal(y, [[1, 2, 3], [2, 3, 0], [3, 0, 0]])
@@ -164,13 +70,13 @@ class TestHankel(object):
         assert_array_equal(y, [[1, 2, 3], [2, 3, 4], [3, 4, 5]])
 
 
-class TestCirculant(object):
+class TestCirculant:
     def test_basic(self):
         y = circulant([1, 2, 3])
         assert_array_equal(y, [[1, 3, 2], [2, 1, 3], [3, 2, 1]])
 
 
-class TestHadamard(object):
+class TestHadamard:
 
     def test_basic(self):
 
@@ -190,11 +96,10 @@ class TestHadamard(object):
         assert_raises(ValueError, hadamard, 5)
 
 
-class TestLeslie(object):
+class TestLeslie:
 
     def test_bad_shapes(self):
         assert_raises(ValueError, leslie, [[1, 1], [2, 2]], [3, 4, 5])
-        assert_raises(ValueError, leslie, [3, 4, 5], [[1, 1], [2, 2]])
         assert_raises(ValueError, leslie, [1, 2], [1, 2])
         assert_raises(ValueError, leslie, [1], [])
 
@@ -206,10 +111,9 @@ class TestLeslie(object):
         assert_array_equal(a, expected)
 
 
-class TestCompanion(object):
+class TestCompanion:
 
     def test_bad_shapes(self):
-        assert_raises(ValueError, companion, [[1, 1], [2, 2]])
         assert_raises(ValueError, companion, [0, 4, 5])
         assert_raises(ValueError, companion, [1])
         assert_raises(ValueError, companion, [])
@@ -225,6 +129,16 @@ class TestCompanion(object):
         expected = array([
             [-2.5, 5.0],
             [1.0, 0.0]])
+        assert_array_equal(c, expected)
+
+        c = companion([(1.0, 2.0, 3.0),
+                       (4.0, 5.0, 6.0)])
+        expected = array([
+            ([-2.00, -3.00],
+             [+1.00, +0.00]),
+            ([-1.25, -1.50],
+             [+1.00, +0.00])
+        ])
         assert_array_equal(c, expected)
 
 
@@ -257,9 +171,6 @@ class TestBlockDiag:
 
         a = block_diag([2, 3], 4)
         assert_array_equal(a, [[2, 3, 0], [0, 0, 4]])
-
-    def test_bad_arg(self):
-        assert_raises(ValueError, block_diag, [[[1]]])
 
     def test_no_args(self):
         a = block_diag()
@@ -296,25 +207,7 @@ class TestBlockDiag:
                                [0, 0, 6, 7, 0, 0]])
 
 
-class TestKron:
-
-    def test_basic(self):
-
-        a = kron(array([[1, 2], [3, 4]]), array([[1, 1, 1]]))
-        assert_array_equal(a, array([[1, 1, 1, 2, 2, 2],
-                                     [3, 3, 3, 4, 4, 4]]))
-
-        m1 = array([[1, 2], [3, 4]])
-        m2 = array([[10], [11]])
-        a = kron(m1, m2)
-        expected = array([[10, 20],
-                          [11, 22],
-                          [30, 40],
-                          [33, 44]])
-        assert_array_equal(a, expected)
-
-
-class TestHelmert(object):
+class TestHelmert:
 
     def test_orthogonality(self):
         for n in range(1, 7):
@@ -333,7 +226,7 @@ class TestHelmert(object):
                 assert_allclose(U.T.dot(U), np.eye(n-1), atol=1e-12)
 
 
-class TestHilbert(object):
+class TestHilbert:
 
     def test_basic(self):
         h3 = array([[1.0, 1/2., 1/3.],
@@ -347,7 +240,7 @@ class TestHilbert(object):
         assert_equal(h0.shape, (0, 0))
 
 
-class TestInvHilbert(object):
+class TestInvHilbert:
 
     def test_basic(self):
         invh1 = array([[1]])
@@ -501,12 +394,12 @@ class TestInvHilbert(object):
              -1129631016152221783200, 1098252376814660067000,
              -753830033789944188000, 346146444087219270000,
              -95382575704033754400, 11922821963004219300]
-            ])
+        ])
         assert_array_equal(invhilbert(17, exact=True), invh17)
         assert_allclose(invhilbert(17), invh17.astype(float), rtol=1e-12)
 
     def test_inverse(self):
-        for n in xrange(1, 10):
+        for n in range(1, 10):
             a = hilbert(n)
             b = invhilbert(n)
             # The Hilbert matrix is increasingly badly conditioned,
@@ -515,7 +408,7 @@ class TestInvHilbert(object):
             assert_allclose(a.dot(b), eye(n), atol=1e-15*c, rtol=1e-15*c)
 
 
-class TestPascal(object):
+class TestPascal:
 
     cases = [
         (1, array([[1]]), array([[1]])),
@@ -553,7 +446,7 @@ class TestPascal(object):
 
     def test_big(self):
         p = pascal(50)
-        assert_equal(p[-1, -1], comb(98, 49, exact=True))
+        assert p[-1, -1] == comb(98, 49, exact=True)
 
     def test_threshold(self):
         # Regression test.  An early version of `pascal` returned an
@@ -563,7 +456,7 @@ class TestPascal(object):
         p = pascal(34)
         assert_equal(2*p.item(-1, -2), p.item(-1, -1), err_msg="n = 34")
         p = pascal(35)
-        assert_equal(2*p.item(-1, -2), p.item(-1, -1), err_msg="n = 35")
+        assert_equal(2.*p.item(-1, -2), 1.*p.item(-1, -1), err_msg="n = 35")
 
 
 def test_invpascal():
@@ -578,8 +471,7 @@ def test_invpascal():
         # precision when n is greater than 18.  Instead we'll cast both to
         # object arrays, and then multiply.
         e = ip.astype(object).dot(p.astype(object))
-        assert_array_equal(e, eye(n), err_msg="n=%d  kind=%r exact=%r" %
-                                              (n, kind, exact))
+        assert_array_equal(e, eye(n), err_msg=f"n={n}  kind={kind!r} exact={exact!r}")
 
     kinds = ['symmetric', 'lower', 'upper']
 
@@ -640,3 +532,68 @@ def test_fiedler_companion():
     fc = fiedler_companion([1., -16., 86., -176., 105.])
     assert_array_almost_equal(eigvals(fc),
                               np.array([7., 5., 3., 1.]))
+
+
+class TestConvolutionMatrix:
+    """
+    Test convolution_matrix vs. numpy.convolve for various parameters.
+    """
+
+    def create_vector(self, n, cpx):
+        """Make a complex or real test vector of length n."""
+        x = np.linspace(-2.5, 2.2, n)
+        if cpx:
+            x = x + 1j*np.linspace(-1.5, 3.1, n)
+        return x
+
+    def test_bad_n(self):
+        # n must be a positive integer
+        with pytest.raises(ValueError, match='n must be a positive integer'):
+            convolution_matrix([1, 2, 3], 0)
+
+    def test_empty_first_arg(self):
+        # first arg must have at least one value
+        with pytest.raises(ValueError, match=r'len\(a\)'):
+            convolution_matrix([], 4)
+
+    def test_bad_mode(self):
+        # mode must be in ('full', 'valid', 'same')
+        with pytest.raises(ValueError, match='mode.*must be one of'):
+            convolution_matrix((1, 1), 4, mode='invalid argument')
+
+    @pytest.mark.parametrize('cpx', [False, True])
+    @pytest.mark.parametrize('na', [1, 2, 9])
+    @pytest.mark.parametrize('nv', [1, 2, 9])
+    @pytest.mark.parametrize('mode', [None, 'full', 'valid', 'same'])
+    def test_against_numpy_convolve(self, cpx, na, nv, mode):
+        a = self.create_vector(na, cpx)
+        v = self.create_vector(nv, cpx)
+        if mode is None:
+            y1 = np.convolve(v, a)
+            A = convolution_matrix(a, nv)
+        else:
+            y1 = np.convolve(v, a, mode)
+            A = convolution_matrix(a, nv, mode)
+        y2 = A @ v
+        assert_array_almost_equal(y1, y2)
+
+
+@pytest.mark.fail_slow(5)  # `leslie` has an import in the function
+@pytest.mark.parametrize('f, args', [(circulant, ()),
+                                     (companion, ()),
+                                     (convolution_matrix, (5, 'same')),
+                                     (fiedler, ()),
+                                     (fiedler_companion, ()),
+                                     (leslie, (np.arange(9),)),
+                                     (toeplitz, (np.arange(9),)),
+                                     ])
+def test_batch(f, args):
+    rng = np.random.default_rng(283592436523456)
+    batch_shape = (2, 3)
+    m = 10
+    A = rng.random(batch_shape + (m,))
+
+    res = f(A, *args)
+    ref = np.asarray([f(a, *args) for a in A.reshape(-1, m)])
+    ref = ref.reshape(A.shape[:-1] + ref.shape[-2:])
+    assert_allclose(res, ref)

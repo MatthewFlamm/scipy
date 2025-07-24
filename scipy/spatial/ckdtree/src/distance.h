@@ -56,10 +56,10 @@ inline double
 sqeuclidean_distance_double(const double *u, const double *v, ckdtree_intp_t n)
 {
     double s;
-    ckdtree_intp_t i;
+    ckdtree_intp_t i = 0;
     // manually unrolled loop, might be vectorized
     double acc[4] = {0., 0., 0., 0.};
-    for (i = 0; i < n/4; i += 4) {
+    for (; i + 4 <= n; i += 4) {
         double _u[4] = {u[i], u[i + 1], u[i + 2], u[i + 3]};
         double _v[4] = {v[i], v[i + 1], v[i + 2], v[i + 3]};
         double diff[4] = {_u[0] - _v[0],
@@ -117,10 +117,10 @@ struct BoxDist1D {
          *
          * We will fix the convention later.
          * */
-        if (CKDTREE_UNLIKELY(full <= 0)) {
+        if (full <= 0) {
             /* A non-periodic dimension */
             /* \/     */
-            if(max <= 0 || min >= 0) {
+            if (max <= 0 || min >= 0) {
                 /* do not pass though 0 */
                 min = ckdtree_fabs(min);
                 max = ckdtree_fabs(max);
@@ -230,7 +230,7 @@ struct BoxDist1D {
         tmax = x - max;
         tmin = x - min;
         /* is the test point in this range */
-        if(CKDTREE_LIKELY(tmax < 0 && tmin > 0)) {
+        if(tmax < 0 && tmin > 0) {
             /* yes. min distance is 0 */
             return 0;
         }
@@ -262,8 +262,8 @@ struct BoxDist1D {
     wrap_distance(const double x, const double hb, const double fb)
     {
         double x1;
-        if (CKDTREE_UNLIKELY(x < -hb)) x1 = fb + x;
-        else if (CKDTREE_UNLIKELY(x > hb)) x1 = x - fb;
+        if (x < -hb) x1 = fb + x;
+        else if (x > hb) x1 = x - fb;
         else x1 = x;
     #if 0
         printf("ckdtree_fabs_b x : %g x1 %g\n", x, x1);

@@ -1,3 +1,7 @@
+#include "ckdtree_decl.h"
+#include "ordered_pair.h"
+#include "rectangle.h"
+
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -9,10 +13,6 @@
 #include <typeinfo>
 #include <stdexcept>
 #include <ios>
-
-#include "ckdtree_decl.h"
-#include "ordered_pair.h"
-#include "rectangle.h"
 
 
 static void
@@ -98,6 +98,7 @@ traverse_checking(const ckdtree *self,
             const double p = tracker->p;
             const double tub = tracker->upper_bound;
             const double *data = self->raw_data;
+            const double epsfac = tracker->epsfac;
             const ckdtree_intp_t *indices = self->raw_indices;
             const ckdtree_intp_t m = self->m;
             const ckdtree_intp_t start1 = lnode1->start_idx;
@@ -105,14 +106,8 @@ traverse_checking(const ckdtree *self,
             const ckdtree_intp_t end1 = lnode1->end_idx;
             const ckdtree_intp_t end2 = lnode2->end_idx;
 
-            CKDTREE_PREFETCH(data+indices[start1]*m, 0, m);
-            if (start1 < end1 - 1)
-               CKDTREE_PREFETCH(data+indices[start1+1]*m, 0, m);
 
             for(i = start1; i < end1; ++i) {
-
-                if (i < end1 - 2)
-                     CKDTREE_PREFETCH(data+indices[i+2]*m, 0, m);
 
                 /* Special care here to avoid duplicate pairs */
                 if (node1 == node2)
@@ -120,15 +115,7 @@ traverse_checking(const ckdtree *self,
                 else
                     min_j = start2;
 
-                if (min_j < end2)
-                    CKDTREE_PREFETCH(data+indices[min_j]*m, 0, m);
-                if (min_j < end2 - 1)
-                    CKDTREE_PREFETCH(data+indices[min_j+1]*m, 0, m);
-
                 for (j = min_j; j < end2; ++j) {
-
-                    if (j < end2 - 2)
-                        CKDTREE_PREFETCH(data+indices[j+2]*m, 0, m);
 
                     d = MinMaxDist::point_point_p(
                             self,
@@ -136,7 +123,7 @@ traverse_checking(const ckdtree *self,
                             data + indices[j] * m,
                             p, m, tub);
 
-                    if (d <= tub)
+                    if (d <= tub/epsfac)
                         add_ordered_pair(results, indices[i], indices[j]);
                 }
             }
@@ -214,16 +201,16 @@ query_pairs(const ckdtree *self,
     Rectangle r1(self->m, self->raw_mins, self->raw_maxes);
     Rectangle r2(self->m, self->raw_mins, self->raw_maxes);
 
-    if(CKDTREE_LIKELY(self->raw_boxsize_data == NULL)) {
-        HANDLE(CKDTREE_LIKELY(p == 2), MinkowskiDistP2)
+    if (self->raw_boxsize_data == NULL) {
+        HANDLE(p == 2, MinkowskiDistP2)
         HANDLE(p == 1, MinkowskiDistP1)
-        HANDLE(ckdtree_isinf(p), MinkowskiDistPinf)
+        HANDLE(std::isinf(p), MinkowskiDistPinf)
         HANDLE(1, MinkowskiDistPp)
         {}
     } else {
-        HANDLE(CKDTREE_LIKELY(p == 2), BoxMinkowskiDistP2)
+        HANDLE(p == 2, BoxMinkowskiDistP2)
         HANDLE(p == 1, BoxMinkowskiDistP1)
-        HANDLE(ckdtree_isinf(p), BoxMinkowskiDistPinf)
+        HANDLE(std::isinf(p), BoxMinkowskiDistPinf)
         HANDLE(1, BoxMinkowskiDistPp)
         {}
     }

@@ -1,10 +1,10 @@
 """
-dogleg algorithm with rectangular trust regions for least-squares minimization.
+Dogleg algorithm with rectangular trust regions for least-squares minimization.
 
 The description of the algorithm can be found in [Voglis]_. The algorithm does
 trust-region iterations, but the shape of trust regions is rectangular as
 opposed to conventional elliptical. The intersection of a trust region and
-an initial feasible region is again some rectangle. Thus on each iteration a
+an initial feasible region is again some rectangle. Thus, on each iteration a
 bound-constrained quadratic optimization problem is solved.
 
 A quadratic problem is solved by well-known dogleg approach, where the
@@ -40,14 +40,13 @@ References
             Mathematics, Corfu, Greece, 2004.
 .. [NumOpt] J. Nocedal and S. J. Wright, "Numerical optimization, 2nd edition".
 """
-from __future__ import division, print_function, absolute_import
-
 import numpy as np
 from numpy.linalg import lstsq, norm
 
 from scipy.sparse.linalg import LinearOperator, aslinearoperator, lsmr
 from scipy.optimize import OptimizeResult
-from scipy._lib.six import string_types
+from scipy._lib._util import _call_callback_maybe_halt
+
 
 from .common import (
     step_size_to_bound, in_bounds, update_tr_radius, evaluate_quadratic,
@@ -135,7 +134,7 @@ def dogleg_step(x, newton_step, g, a, b, tr_bounds, lb, ub):
     # The classical dogleg algorithm would check if Cauchy step fits into
     # the bounds, and just return it constrained version if not. But in a
     # rectangular trust region it makes sense to try to improve constrained
-    # Cauchy step too. Thus we don't distinguish these two cases.
+    # Cauchy step too. Thus, we don't distinguish these two cases.
 
     cauchy_step = -minimize_quadratic_1d(a, b, 0, to_bounds)[0] * g
 
@@ -150,7 +149,7 @@ def dogleg_step(x, newton_step, g, a, b, tr_bounds, lb, ub):
 
 
 def dogbox(fun, jac, x0, f0, J0, lb, ub, ftol, xtol, gtol, max_nfev, x_scale,
-           loss_function, tr_solver, tr_options, verbose):
+           loss_function, tr_solver, tr_options, verbose, callback=None):
     f = f0
     f_true = f.copy()
     nfev = 1
@@ -167,7 +166,7 @@ def dogbox(fun, jac, x0, f0, J0, lb, ub, ftol, xtol, gtol, max_nfev, x_scale,
 
     g = compute_grad(J, f)
 
-    jac_scale = isinstance(x_scale, string_types) and x_scale == 'jac'
+    jac_scale = isinstance(x_scale, str) and x_scale == 'jac'
     if jac_scale:
         scale, scale_inv = compute_jac_scale(J)
     else:
@@ -231,7 +230,7 @@ def dogbox(fun, jac, x0, f0, J0, lb, ub, ftol, xtol, gtol, max_nfev, x_scale,
 
             # We compute lsmr step in scaled variables and then
             # transform back to normal variables, if lsmr would give exact lsq
-            # solution this would be equivalent to not doing any
+            # solution, this would be equivalent to not doing any
             # transformations, but from experience it's better this way.
 
             # We pass active_set to make computations as if we selected
@@ -263,7 +262,9 @@ def dogbox(fun, jac, x0, f0, J0, lb, ub, ftol, xtol, gtol, max_nfev, x_scale,
             elif tr_solver == 'lsmr':
                 predicted_reduction = -evaluate_quadratic(Jop, g, step)
 
-            x_new = x + step
+            # gh11403 ensure that solution is fully within bounds.
+            x_new = np.clip(x + step, lb, ub)
+
             f_new = fun(x_new)
             nfev += 1
 
@@ -307,7 +308,7 @@ def dogbox(fun, jac, x0, f0, J0, lb, ub, ftol, xtol, gtol, max_nfev, x_scale,
 
             cost = cost_new
 
-            J = jac(x, f)
+            J = jac(x)
             njev += 1
 
             if loss_function is not None:
@@ -323,6 +324,18 @@ def dogbox(fun, jac, x0, f0, J0, lb, ub, ftol, xtol, gtol, max_nfev, x_scale,
             actual_reduction = 0
 
         iteration += 1
+        
+        # Call callback function and possibly stop optimization
+        if callback is not None:
+            intermediate_result = OptimizeResult(
+                x=x, fun=f, nit=iteration, nfev=nfev)
+            intermediate_result["cost"] = cost_new
+
+            if _call_callback_maybe_halt(
+                callback, intermediate_result
+            ):
+                termination_status = -2
+                break
 
     if termination_status is None:
         termination_status = 0

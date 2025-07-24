@@ -1,13 +1,21 @@
-import numpy as np
 from numbers import Number
 import operator
-from .pypocketfft import good_size
-import operator
-import sys
+import os
+import threading
+import contextlib
+
+import numpy as np
+
+from scipy._lib._util import copy_if_needed
+
+# good_size is exposed (and used) from this import
+from .pypocketfft import good_size, prev_good_size
 
 
-# TODO: Build with OpenMp and add configuration support
-_default_workers = 1
+__all__ = ['good_size', 'prev_good_size', 'set_workers', 'get_workers']
+
+_config = threading.local()
+_cpu_count = os.cpu_count()
 
 
 def _iterable_of_int(x, name=None):
@@ -30,14 +38,41 @@ def _iterable_of_int(x, name=None):
         x = [operator.index(a) for a in x]
     except TypeError as e:
         name = name or "value"
-        raise ValueError("{} must be a scalar or iterable of integers"
-                         .format(name)) from e
+        raise ValueError(f"{name} must be a scalar or iterable of integers") from e
 
     return x
 
 
 def _init_nd_shape_and_axes(x, shape, axes):
-    """Handles shape and axes arguments for nd transforms"""
+    """
+    Handle shape and axes arguments for N-D transforms.
+
+    Returns the shape and axes in a standard form, taking into account negative
+    values and checking for various potential errors.
+
+    Parameters
+    ----------
+    x : ndarray
+        The input array.
+    shape : int or array_like of ints or None
+        The shape of the result. If both `shape` and `axes` (see below) are
+        None, `shape` is ``x.shape``; if `shape` is None but `axes` is
+        not None, then `shape` is ``numpy.take(x.shape, axes, axis=0)``.
+        If `shape` is -1, the size of the corresponding dimension of `x` is
+        used.
+    axes : int or array_like of ints or None
+        Axes along which the calculation is computed.
+        The default is over all axes.
+        Negative indices are automatically converted to their positive
+        counterparts.
+
+    Returns
+    -------
+    shape : tuple
+        The shape of the result as a tuple of integers.
+    axes : list
+        Axes along which the calculation is computed, as a list of integers.
+    """
     noshape = shape is None
     noaxes = axes is None
 
@@ -70,9 +105,9 @@ def _init_nd_shape_and_axes(x, shape, axes):
 
     if any(s < 1 for s in shape):
         raise ValueError(
-            "invalid number of data points ({0}) specified".format(shape))
+            f"invalid number of data points ({shape}) specified")
 
-    return shape, axes
+    return tuple(shape), list(axes)
 
 
 def _asfarray(x):
@@ -89,8 +124,11 @@ def _asfarray(x):
     elif x.dtype.kind not in 'fc':
         return np.asarray(x, np.float64)
 
+    # Require native byte order
+    dtype = x.dtype.newbyteorder('=')
     # Always align input
-    return np.array(x, copy=not x.flags['ALIGNED'])
+    copy = True if not x.flags['ALIGNED'] else copy_if_needed
+    return np.array(x, dtype=dtype, copy=copy)
 
 def _datacopied(arr, original):
     """
@@ -134,33 +172,78 @@ def _fix_shape(x, shape, axes):
 def _fix_shape_1d(x, n, axis):
     if n < 1:
         raise ValueError(
-            "invalid number of data points ({0}) specified".format(n))
+            f"invalid number of data points ({n}) specified")
 
     return _fix_shape(x, (n,), (axis,))
 
 
+_NORM_MAP = {None: 0, 'backward': 0, 'ortho': 1, 'forward': 2}
+
+
 def _normalization(norm, forward):
     """Returns the pypocketfft normalization mode from the norm argument"""
-
-    if norm is None:
-        return 0 if forward else 2
-
-    if norm == 'ortho':
-        return 1
-
-    raise ValueError(
-        "Invalid norm value {}, should be None or \"ortho\".".format(norm))
-
-def next_fast_len(target, kind='C2C'):
     try:
-        real = {'C2C': False, 'R2C': True, 'C2R': True}[kind]
+        inorm = _NORM_MAP[norm]
+        return inorm if forward else (2 - inorm)
     except KeyError:
-        raise ValueError('Unknown transform kind: {}'.format(kind))
-
-    target = operator.index(target)
-
-    # Error if a size_t result could overflow
-    if (target-1)*11 > sys.maxsize:
         raise ValueError(
-            'Target length is too large to perform an FFT: {}' .format(target))
-    return good_size(target, real)
+            f'Invalid norm value {norm!r}, should '
+            'be "backward", "ortho" or "forward"') from None
+
+
+def _workers(workers):
+    if workers is None:
+        return getattr(_config, 'default_workers', 1)
+
+    if workers < 0:
+        if workers >= -_cpu_count:
+            workers += 1 + _cpu_count
+        else:
+            raise ValueError(f"workers value out of range; got {workers}, must not be"
+                             f" less than {-_cpu_count}")
+    elif workers == 0:
+        raise ValueError("workers must not be zero")
+
+    return workers
+
+
+@contextlib.contextmanager
+def set_workers(workers):
+    """Context manager for the default number of workers used in `scipy.fft`
+
+    Parameters
+    ----------
+    workers : int
+        The default number of workers to use
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scipy import fft, signal
+    >>> rng = np.random.default_rng()
+    >>> x = rng.standard_normal((128, 64))
+    >>> with fft.set_workers(4):
+    ...     y = signal.fftconvolve(x, x)
+
+    """
+    old_workers = get_workers()
+    _config.default_workers = _workers(operator.index(workers))
+    try:
+        yield
+    finally:
+        _config.default_workers = old_workers
+
+
+def get_workers():
+    """Returns the default number of workers within the current context
+
+    Examples
+    --------
+    >>> from scipy import fft
+    >>> fft.get_workers()
+    1
+    >>> with fft.set_workers(4):
+    ...     fft.get_workers()
+    4
+    """
+    return getattr(_config, 'default_workers', 1)

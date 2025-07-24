@@ -1,6 +1,4 @@
 ''' Tests for netcdf '''
-from __future__ import division, print_function, absolute_import
-
 import os
 from os.path import join as pjoin, dirname
 import shutil
@@ -11,18 +9,21 @@ from glob import glob
 from contextlib import contextmanager
 
 import numpy as np
-from numpy.testing import assert_, assert_allclose, assert_equal
+from numpy.testing import (assert_, assert_allclose, assert_equal,
+                           break_cycles, IS_PYPY)
+import pytest
 from pytest import raises as assert_raises
 
-from scipy.io.netcdf import netcdf_file, IS_PYPY
-
-from scipy._lib._numpy_compat import suppress_warnings
+from scipy.io import netcdf_file
 from scipy._lib._tmpdirs import in_tempdir
 
 TEST_DATA_PATH = pjoin(dirname(__file__), 'data')
 
 N_EG_ELS = 11  # number of elements for example variable
 VARTYPE_EG = 'b'  # var type for example variable
+
+
+pytestmark = pytest.mark.thread_unsafe
 
 
 @contextmanager
@@ -56,9 +57,9 @@ def assert_mask_matches(arr, expected_mask):
 
     Parameters
     ----------
-    arr: ndarray or MaskedArray
+    arr : ndarray or MaskedArray
         Array to test.
-    expected_mask: array_like of booleans
+    expected_mask : array_like of booleans
         A list giving the expected mask.
     '''
 
@@ -103,7 +104,7 @@ def test_read_write_files():
         # mmap.  When n * n_bytes(var_type) is not divisible by 4, this
         # raised an error in pupynere 1.0.12 and scipy rev 5893, because
         # calculated vsize was rounding up in units of 4 - see
-        # https://www.unidata.ucar.edu/software/netcdf/docs/user_guide.html
+        # https://www.unidata.ucar.edu/software/netcdf/guide_toc.html
         with open('simple.nc', 'rb') as fobj:
             with netcdf_file(fobj) as f:
                 # by default, don't use mmap for file-like
@@ -111,10 +112,13 @@ def test_read_write_files():
                 check_simple(f)
 
         # Read file from fileobj, with mmap
-        with suppress_warnings() as sup:
+        with warnings.catch_warnings():
             if IS_PYPY:
-                sup.filter(RuntimeWarning,
-                           "Cannot close a netcdf_file opened with mmap=True.*")
+                warnings.filterwarnings(
+                    "ignore",
+                    "Cannot close a netcdf_file opened with mmap=True.*",
+                    RuntimeWarning
+                )
             with open('simple.nc', 'rb') as fobj:
                 with netcdf_file(fobj, mmap=True) as f:
                     assert_(f.use_mmap)
@@ -134,17 +138,19 @@ def test_read_write_files():
             check_simple(f)
             assert_equal(f.variables['app_var'][:], 42)
 
-    except:  # noqa: E722
+    finally:
+        if IS_PYPY:
+            # windows cannot remove a dead file held by a mmap
+            # that has not been collected in PyPy
+            break_cycles()
+            break_cycles()
         os.chdir(cwd)
         shutil.rmtree(tmpdir)
-        raise
-    os.chdir(cwd)
-    shutil.rmtree(tmpdir)
 
 
 def test_read_write_sio():
     eg_sio1 = BytesIO()
-    with make_simple(eg_sio1, 'w') as f1:
+    with make_simple(eg_sio1, 'w'):
         str_val = eg_sio1.getvalue()
 
     eg_sio2 = BytesIO(str_val)
@@ -233,9 +239,9 @@ def test_encoded_fill_value():
 def test_read_example_data():
     # read any example data files
     for fname in glob(pjoin(TEST_DATA_PATH, '*.nc')):
-        with netcdf_file(fname, 'r') as f:
+        with netcdf_file(fname, 'r'):
             pass
-        with netcdf_file(fname, 'r', mmap=False) as f:
+        with netcdf_file(fname, 'r', mmap=False):
             pass
 
 
@@ -244,9 +250,10 @@ def test_itemset_no_segfault_on_readonly():
     # Open the test file in read-only mode.
 
     filename = pjoin(TEST_DATA_PATH, 'example_1.nc')
-    with suppress_warnings() as sup:
-        sup.filter(RuntimeWarning,
-                   "Cannot close a netcdf_file opened with mmap=True, when netcdf_variables or arrays referring to its data still exist")
+    with warnings.catch_warnings():
+        message = ("Cannot close a netcdf_file opened with mmap=True, when "
+                   "netcdf_variables or arrays referring to its data still exist")
+        warnings.filterwarnings("ignore", message, RuntimeWarning)
         with netcdf_file(filename, 'r', mmap=True) as f:
             time_var = f.variables['time']
 
@@ -285,7 +292,7 @@ def test_write_invalid_dtype():
 def test_flush_rewind():
     stream = BytesIO()
     with make_simple(stream, mode='w') as f:
-        x = f.createDimension('x',4)
+        f.createDimension('x',4)  # x is used in createVariable
         v = f.createVariable('v', 'i2', ['x'])
         v[:] = 1
         f.flush()
@@ -346,9 +353,10 @@ def test_mmaps_segfault():
             return f.variables['lat'][:]
 
     # should not crash
-    with suppress_warnings() as sup:
-        sup.filter(RuntimeWarning,
-                   "Cannot close a netcdf_file opened with mmap=True, when netcdf_variables or arrays referring to its data still exist")
+    with warnings.catch_warnings():
+        message = ("Cannot close a netcdf_file opened with mmap=True, when "
+                   "netcdf_variables or arrays referring to its data still exist")
+        warnings.filterwarnings("ignore", message, RuntimeWarning)
         x = doit()
     x.sum()
 
@@ -386,7 +394,7 @@ def test_open_append():
         f._attributes['Kilroy'] = 'was here'
         f.close()
 
-        # open again in 'a', read the att and and a new one
+        # open again in 'a', read the att and a new one
         f = netcdf_file(filename, 'a')
         assert_equal(f._attributes['Kilroy'], b'was here')
         f._attributes['naughty'] = b'Zoot'
@@ -427,7 +435,8 @@ def test_append_recordDimension():
             # Read the file and check that append worked
             with netcdf_file('withRecordDimension.nc') as f:
                 assert_equal(f.variables['time'][-1], i)
-                assert_equal(f.variables['testData'][-1, :, :].copy(), np.full((dataSize, dataSize), i))
+                assert_equal(f.variables['testData'][-1, :, :].copy(),
+                             np.full((dataSize, dataSize), i))
                 assert_equal(f.variables['time'].data.shape[0], i+1)
                 assert_equal(f.variables['testData'].data.shape[0], i+1)
 

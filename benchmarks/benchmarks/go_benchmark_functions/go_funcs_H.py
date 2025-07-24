@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, print_function, absolute_import
-
 import numpy as np
 from numpy import abs, arctan2, asarray, cos, exp, arange, pi, sin, sqrt, sum
 from .go_benchmark import Benchmark
@@ -232,7 +229,7 @@ class HelicalValley(Benchmark):
     *Global optimum*: :math:`f(x) = 0` for :math:`x = [1, 0, 0]`
 
     .. [1] Fletcher, R. & Powell, M. A Rapidly Convergent Descent Method for
-    Minimzation, Computer Journal, 1963, 62, 163-168
+    Minimization, Computer Journal, 1963, 62, 163-168
 
     TODO: Jamil equation is different to original reference. The above paper
     can be obtained from

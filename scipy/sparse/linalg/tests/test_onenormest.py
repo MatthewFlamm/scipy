@@ -1,8 +1,6 @@
 """Test functions for the sparse.linalg._onenormest module
 """
 
-from __future__ import division, print_function, absolute_import
-
 import numpy as np
 from numpy.testing import assert_allclose, assert_equal, assert_
 import pytest
@@ -40,7 +38,7 @@ class MatrixProductOperator(scipy.sparse.linalg.LinearOperator):
         return MatrixProductOperator(self.B.T, self.A.T)
 
 
-class TestOnenormest(object):
+class TestOnenormest:
 
     @pytest.mark.xslow
     def test_onenormest_table_3_t_2(self):
@@ -143,14 +141,14 @@ class TestOnenormest(object):
         assert_allclose(est, est_plain)
 
     @pytest.mark.xslow
-    def test_onenormest_table_6_t_1(self):
+    def test_onenormest_table_6_t_2(self):
         #TODO this test seems to give estimates that match the table,
         #TODO even though no attempt has been made to deal with
         #TODO complex numbers in the one-norm estimation.
         # This will take multiple seconds if your computer is slow like mine.
         # It is stochastic, so the tolerance could be too strict.
         np.random.seed(1234)
-        t = 1
+        t = 2
         n = 100
         itmax = 5
         nsamples = 5000
@@ -216,13 +214,13 @@ class TestOnenormest(object):
         fast_estimate = self._help_product_norm_fast(A, B)
         exact_value = self._help_product_norm_slow(A, B)
         assert_(fast_estimate <= exact_value <= 3*fast_estimate,
-                'fast: %g\nexact:%g' % (fast_estimate, exact_value))
+                f'fast: {fast_estimate:g}\nexact:{exact_value:g}')
 
     def test_returns(self):
         np.random.seed(1234)
         A = scipy.sparse.rand(50, 50, 0.1)
 
-        s0 = scipy.linalg.norm(A.todense(), 1)
+        s0 = scipy.linalg.norm(A.toarray(), 1)
         s1, v = scipy.sparse.linalg.onenormest(A, compute_v=True)
         s2, w = scipy.sparse.linalg.onenormest(A, compute_w=True)
         s3, v2, w2 = scipy.sparse.linalg.onenormest(A, compute_w=True, compute_v=True)
@@ -232,23 +230,23 @@ class TestOnenormest(object):
         assert_allclose(A.dot(v), w, rtol=1e-9)
 
 
-class TestAlgorithm_2_2(object):
+class TestAlgorithm_2_2:
 
+    @pytest.mark.thread_unsafe(reason="Fails in parallel for unknown reasons")
     def test_randn_inv(self):
-        np.random.seed(1234)
+        rng = np.random.RandomState(1234)
         n = 20
         nsamples = 100
         for i in range(nsamples):
 
             # Choose integer t uniformly between 1 and 3 inclusive.
-            t = np.random.randint(1, 4)
+            t = rng.randint(1, 4)
 
             # Choose n uniformly between 10 and 40 inclusive.
-            n = np.random.randint(10, 41)
+            n = rng.randint(10, 41)
 
             # Sample the inverse of a matrix with random normal entries.
-            A = scipy.linalg.inv(np.random.randn(n, n))
+            A = scipy.linalg.inv(rng.randn(n, n))
 
             # Compute the 1-norm bounds.
             g, ind = _algorithm_2_2(A, A.T, t)
-

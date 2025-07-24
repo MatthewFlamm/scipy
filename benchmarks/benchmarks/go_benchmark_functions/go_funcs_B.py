@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, print_function, absolute_import
-
 from numpy import abs, cos, exp, log, arange, pi, sin, sqrt, sum
 from .go_benchmark import Benchmark
 
@@ -624,6 +621,7 @@ class Brown(Benchmark):
     and Numerical Optimisation, 2013, 4, 150-194.
 
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -633,7 +631,6 @@ class Brown(Benchmark):
 
         self.global_optimum = [[0 for _ in range(self.N)]]
         self.fglob = 0.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1

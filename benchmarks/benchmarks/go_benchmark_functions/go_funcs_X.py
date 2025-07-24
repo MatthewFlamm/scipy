@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, print_function, absolute_import
-
 import numpy as np
 from numpy import abs, sum, sin, cos, pi, exp, arange, prod, sqrt
 from .go_benchmark import Benchmark
@@ -33,6 +30,7 @@ class XinSheYang01(Benchmark):
     For Global Optimization Problems Int. Journal of Mathematical Modelling
     and Numerical Optimisation, 2013, 4, 150-194.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -42,7 +40,6 @@ class XinSheYang01(Benchmark):
 
         self.global_optimum = [[0 for _ in range(self.N)]]
         self.fglob = 0.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1
@@ -75,6 +72,7 @@ class XinSheYang02(Benchmark):
     For Global Optimization Problems Int. Journal of Mathematical Modelling
     and Numerical Optimisation, 2013, 4, 150-194.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -84,7 +82,6 @@ class XinSheYang02(Benchmark):
 
         self.global_optimum = [[0 for _ in range(self.N)]]
         self.fglob = 0.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1
@@ -119,6 +116,7 @@ class XinSheYang03(Benchmark):
     For Global Optimization Problems Int. Journal of Mathematical Modelling
     and Numerical Optimisation, 2013, 4, 150-194.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -127,7 +125,6 @@ class XinSheYang03(Benchmark):
 
         self.global_optimum = [[0 for _ in range(self.N)]]
         self.fglob = -1.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1
@@ -165,6 +162,7 @@ class XinSheYang04(Benchmark):
     For Global Optimization Problems Int. Journal of Mathematical Modelling
     and Numerical Optimisation, 2013, 4, 150-194.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -173,7 +171,6 @@ class XinSheYang04(Benchmark):
 
         self.global_optimum = [[0 for _ in range(self.N)]]
         self.fglob = -1.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1

@@ -67,7 +67,7 @@ static const routine_t routines[] = {
 static int create_pointers(PyObject *module)
 {
     PyObject *d, *obj = NULL;
-    int i;
+    size_t i;
 
     d = PyModule_GetDict(module);
     if (d == NULL) {
@@ -97,7 +97,6 @@ fail:
 }
 
 
-#if PY_MAJOR_VERSION >= 3
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
     "_test_multivariate",
@@ -122,19 +121,10 @@ PyInit__test_multivariate(void)
         Py_DECREF(m);
         return NULL;
     }
+
+#if Py_GIL_DISABLED
+    PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
+#endif
+
     return m;
 }
-
-#else
-
-PyMODINIT_FUNC
-init_test_multivariate(void)
-{
-    PyObject *m;
-    m = Py_InitModule("_test_multivariate", NULL);
-    if (m == NULL) {
-        return;
-    }
-    create_pointers(m);
-}
-#endif

@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, print_function, absolute_import
-
 from numpy import asarray, atleast_2d, arange, sin, sqrt, prod, sum, round
 from .go_benchmark import Benchmark
 
@@ -34,6 +31,7 @@ class Katsuura(Benchmark):
     TODO: Adorio has wrong global minimum.  Adorio uses round, Gavana docstring
     uses floor, but Gavana code uses round.  We'll use round...
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -43,7 +41,6 @@ class Katsuura(Benchmark):
         self.global_optimum = [[0.0 for _ in range(self.N)]]
         self.custom_bounds = [(0, 1), (0, 1)]
         self.fglob = 1.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1

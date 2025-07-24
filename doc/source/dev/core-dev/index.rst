@@ -16,8 +16,10 @@ SciPy Core Developer Guide
 
 .. include:: deprecations.rst.inc
 
+.. include:: vendored-code.rst.inc
+
 .. include:: distributing.rst.inc
 
-.. include:: releasing.rst.inc
+.. include:: interactive_examples.rst.inc
 
-.. include:: modules.rst.inc
+.. include:: releasing.rst.inc

@@ -2,18 +2,14 @@
 """
 Tests for numerical integration.
 """
-from __future__ import division, print_function, absolute_import
-
 import numpy as np
 from numpy import (arange, zeros, array, dot, sqrt, cos, sin, eye, pi, exp,
                    allclose)
 
-from scipy._lib._numpy_compat import _assert_warns
-from scipy._lib.six import xrange
-
 from numpy.testing import (
     assert_, assert_array_almost_equal,
     assert_allclose, assert_array_equal, assert_equal)
+import pytest
 from pytest import raises as assert_raises
 from scipy.integrate import odeint, ode, complex_ode
 
@@ -22,7 +18,7 @@ from scipy.integrate import odeint, ode, complex_ode
 #------------------------------------------------------------------------------
 
 
-class TestOdeint(object):
+class TestOdeint:
     # Check integrate.odeint
 
     def _do_problem(self, problem):
@@ -57,17 +53,19 @@ class TestOdeint(object):
             self._do_problem(problem)
 
 
-class TestODEClass(object):
+class TestODEClass:
 
     ode_class = None   # Set in subclass.
 
     def _do_problem(self, problem, integrator, method='adams'):
 
         # ode has callback arguments in different order than odeint
-        f = lambda t, z: problem.f(z, t)
+        def f(t, z):
+            return problem.f(z, t)
         jac = None
         if hasattr(problem, 'jac'):
-            jac = lambda t, z: problem.jac(z, t)
+            def jac(t, z):
+                return problem.jac(z, t)
 
         integrator_params = {}
         if problem.lband is not None or problem.uband is not None:
@@ -146,7 +144,8 @@ class TestOde(TestODEClass):
 
     def test_concurrent_fail(self):
         for sol in ('vode', 'zvode', 'lsoda'):
-            f = lambda t, y: 1.0
+            def f(t, y):
+                return 1.0
 
             r = ode(f).set_integrator(sol)
             r.set_initial_value(0, 0)
@@ -159,11 +158,14 @@ class TestOde(TestODEClass):
 
             assert_raises(RuntimeError, r.integrate, r.t + 0.1)
 
-    def test_concurrent_ok(self):
-        f = lambda t, y: 1.0
+    def test_concurrent_ok(self, num_parallel_threads):
+        def f(t, y):
+            return 1.0
 
-        for k in xrange(3):
+        for k in range(3):
             for sol in ('vode', 'zvode', 'lsoda', 'dopri5', 'dop853'):
+                if sol in {'vode', 'zvode', 'lsoda'} and num_parallel_threads > 1:
+                    continue
                 r = ode(f).set_integrator(sol)
                 r.set_initial_value(0, 0)
 
@@ -208,6 +210,7 @@ class TestComplexOde(TestODEClass):
                 self._do_problem(problem, 'vode', 'bdf')
 
     def test_lsoda(self):
+
         # Check the lsoda solver
         for problem_cls in PROBLEMS:
             problem = problem_cls()
@@ -234,7 +237,7 @@ class TestComplexOde(TestODEClass):
             self._do_problem(problem, 'dop853')
 
 
-class TestSolout(object):
+class TestSolout:
     # Check integrate.ode correctly handles solout for dopri5 and dop853
     def _run_solout_test(self, integrator):
         # Check correct usage of solout
@@ -324,7 +327,7 @@ class TestSolout(object):
             self._run_solout_break_test(integrator)
 
 
-class TestComplexSolout(object):
+class TestComplexSolout:
     # Check integrate.ode correctly handles solout for dopri5 and dop853
     def _run_solout_test(self, integrator):
         # Check correct usage of solout
@@ -575,7 +578,7 @@ def jacv(t, x, omega):
     return j
 
 
-class ODECheckParameterUse(object):
+class ODECheckParameterUse:
     """Call an ode-class solver with several cases of parameter use."""
 
     # solver_name must be set before tests can be run with this class.
@@ -637,7 +640,8 @@ class ODECheckParameterUse(object):
         solver.set_integrator(self.solver_name, nsteps=1)
         ic = [1.0, 0.0]
         solver.set_initial_value(ic, 0.0)
-        _assert_warns(UserWarning, solver.integrate, pi)
+        with pytest.warns(UserWarning):
+            solver.integrate(pi)
 
 
 class TestDOPRI5CheckParameterUse(ODECheckParameterUse):
@@ -687,7 +691,7 @@ def test_odeint_banded_jacobian():
         return c.T.copy(order='C')
 
     def bjac_rows(y, t, c):
-        jac = np.row_stack((np.r_[0, np.diag(c, 1)],
+        jac = np.vstack((np.r_[0, np.diag(c, 1)],
                             np.diag(c),
                             np.r_[np.diag(c, -1), 0],
                             np.r_[np.diag(c, -2), 0, 0]))
@@ -742,7 +746,7 @@ def test_odeint_banded_jacobian():
                              mxstep=10000,
                              Dfun=lambda t, y, c: jac(y, t, c), tfirst=True)
     # The code should execute the exact same sequence of floating point
-    # calculations, so these should be exactly equal.  We'll be safe and use
+    # calculations, so these should be exactly equal. We'll be safe and use
     # a small tolerance.
     assert_allclose(sol1, sol1ty, rtol=1e-12, err_msg="sol1 != sol1ty")
 

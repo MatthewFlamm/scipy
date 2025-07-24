@@ -1,4 +1,7 @@
 cimport scipy.special._ufuncs_cxx
+cimport scipy.special._ellip_harm_2
+import scipy.special._special_ufuncs
+import scipy.special._gufuncs
 import numpy as np
 
 
@@ -12,7 +15,8 @@ _sf_error_code_map = {
     'no_result': 6,
     'domain': 7,
     'arg': 8,
-    'other': 9
+    'other': 9,
+    'memory': 10
 }
 
 _sf_error_action_map = {
@@ -54,11 +58,12 @@ def geterr():
 
     >>> import scipy.special as sc
     >>> for key, value in sorted(sc.geterr().items()):
-    ...     print("{}: {}".format(key, value))
+    ...     print(f'{key}: {value}')
     ...
     arg: ignore
     domain: ignore
     loss: ignore
+    memory: raise
     no_result: ignore
     other: ignore
     overflow: ignore
@@ -158,13 +163,19 @@ def seterr(**kwargs):
     for error, action in kwargs.items():
         action = _sf_error_action_map[action]
         code = _sf_error_code_map[error]
+        # Error handling state must be set for all relevant
+        # extension modules in synchrony, since each carries
+        # a separate copy of this state.
         _set_action(code, action)
         scipy.special._ufuncs_cxx._set_action(code, action)
+        scipy.special._special_ufuncs._set_action(code, action)
+        scipy.special._gufuncs._set_action(code, action)
+        scipy.special._ellip_harm_2._set_action(code, action)
 
     return olderr
 
 
-class errstate(object):
+class errstate:
     """Context manager for special-function error handling.
 
     Using an instance of `errstate` as a context manager allows
@@ -177,7 +188,7 @@ class errstate(object):
     kwargs : {all, singular, underflow, overflow, slow, loss, no_result, domain, arg, other}
         Keyword arguments. The valid keywords are possible
         special-function errors. Each keyword should have a string
-        value that defines the treatement for the particular type of
+        value that defines the treatment for the particular type of
         error. Values must be 'ignore', 'warn', or 'other'. See
         `seterr` for details.
 

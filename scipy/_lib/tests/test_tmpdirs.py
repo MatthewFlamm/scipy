@@ -1,6 +1,4 @@
 """ Test tmpdirs module """
-from __future__ import division, print_function, absolute_import
-
 from os import getcwd
 from os.path import realpath, abspath, dirname, isfile, join as pjoin, exists
 
@@ -8,22 +6,27 @@ from scipy._lib._tmpdirs import tempdir, in_tempdir, in_dir
 
 from numpy.testing import assert_, assert_equal
 
+import pytest
+
+
 MY_PATH = abspath(__file__)
 MY_DIR = dirname(MY_PATH)
 
 
+@pytest.mark.thread_unsafe(reason="tempdir is not thread-safe")
 def test_tempdir():
     with tempdir() as tmpdir:
         fname = pjoin(tmpdir, 'example_file.txt')
-        with open(fname, 'wt') as fobj:
+        with open(fname, "w") as fobj:
             fobj.write('a string\\n')
     assert_(not exists(tmpdir))
 
 
+@pytest.mark.thread_unsafe(reason="in_tempdir is not thread-safe")
 def test_in_tempdir():
     my_cwd = getcwd()
     with in_tempdir() as tmpdir:
-        with open('test.txt', 'wt') as f:
+        with open('test.txt', "w") as f:
             f.write('some text')
         assert_(isfile('test.txt'))
         assert_(isfile(pjoin(tmpdir, 'test.txt')))
@@ -31,6 +34,7 @@ def test_in_tempdir():
     assert_equal(getcwd(), my_cwd)
 
 
+@pytest.mark.thread_unsafe(reason="in_dir is not thread-safe")
 def test_given_directory():
     # Test InGivenDirectory
     cwd = getcwd()
@@ -40,6 +44,5 @@ def test_given_directory():
     with in_dir(MY_DIR) as tmpdir:
         assert_equal(tmpdir, MY_DIR)
         assert_equal(realpath(MY_DIR), realpath(abspath(getcwd())))
-    # We were deleting the given directory!  Check not so now.
+    # We were deleting the given directory! Check not so now.
     assert_(isfile(MY_PATH))
-

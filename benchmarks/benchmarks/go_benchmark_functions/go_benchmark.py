@@ -1,16 +1,10 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, print_function, absolute_import
-
 import numpy as np
 from numpy import abs, asarray
 
-try:
-    from scipy.special import factorial
-except ImportError:
-    pass
+from ..common import safe_import  # noqa:F401
 
 
-class Benchmark(object):
+class Benchmark:
 
     """
     Defines a global optimization benchmark problem.
@@ -47,14 +41,15 @@ class Benchmark(object):
     custom_bounds : sequence
         a list of tuples that contain lower/upper bounds for use in plotting.
     """
+    change_dimensionality = False
 
     def __init__(self, dimensions):
         """
         Initialises the problem
-        
+
         Parameters
         ----------
-        
+
         dimensions : int
             The dimensionality of the problem
         """
@@ -63,11 +58,10 @@ class Benchmark(object):
         self.nfev = 0
         self.fglob = np.nan
         self.global_optimum = None
-        self.change_dimensionality = False
         self.custom_bounds = None
 
     def __str__(self):
-        return '{0} ({1} dimensions)'.format(self.__class__.__name__, self.N)
+        return f'{self.__class__.__name__} ({self.N} dimensions)'
 
     def __repr__(self):
         return self.__class__.__name__
@@ -109,9 +103,10 @@ class Benchmark(object):
             return True
 
         # the solution should still be in bounds, otherwise immediate fail.
-        if np.any(x > np.asfarray(self.bounds)[:, 1]):
+        bounds = np.asarray(self.bounds, dtype=np.float64)
+        if np.any(x > bounds[:, 1]):
             return False
-        if np.any(x < np.asfarray(self.bounds)[:, 0]):
+        if np.any(x < bounds[:, 0]):
             return False
 
         # you found a lower global minimum.  This shouldn't happen.
@@ -174,9 +169,9 @@ class Benchmark(object):
 
     @property
     def N(self):
-        """        
+        """
         The dimensionality of the problem.
-        
+
         Returns
         -------
         N : int

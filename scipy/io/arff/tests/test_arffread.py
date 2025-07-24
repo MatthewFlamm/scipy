@@ -1,25 +1,18 @@
-from __future__ import division, print_function, absolute_import
-
 import datetime
 import os
 import sys
 from os.path import join as pjoin
-from scipy._lib.six import xrange
 
-if sys.version_info[0] >= 3:
-    from io import StringIO
-else:
-    from cStringIO import StringIO
+from io import StringIO
 
 import numpy as np
 
 from numpy.testing import (assert_array_almost_equal,
                            assert_array_equal, assert_equal, assert_)
-import pytest
 from pytest import raises as assert_raises
 
-from scipy.io.arff.arffread import loadarff
-from scipy.io.arff.arffread import read_header, ParseArffError
+from scipy.io.arff import loadarff
+from scipy.io.arff._arffread import read_header, ParseArffError
 
 
 data_path = pjoin(os.path.dirname(__file__), 'data')
@@ -51,7 +44,7 @@ expect_missing['yop'] = expect_missing_raw[:, 0]
 expect_missing['yap'] = expect_missing_raw[:, 1]
 
 
-class TestData(object):
+class TestData:
     def test1(self):
         # Parsing trivial file with nothing.
         self._test(test4)
@@ -64,6 +57,10 @@ class TestData(object):
         # Parsing trivial file with nominal attribute of 1 character.
         self._test(test6)
 
+    def test4(self):
+        # Parsing trivial file with trailing spaces in attribute declaration.
+        self._test(test11)
+
     def _test(self, test_file):
         data, meta = loadarff(test_file)
         for i in range(len(data)):
@@ -73,17 +70,13 @@ class TestData(object):
 
     def test_filelike(self):
         # Test reading from file-like object (StringIO)
-        f1 = open(test1)
-        data1, meta1 = loadarff(f1)
-        f1.close()
-        f2 = open(test1)
-        data2, meta2 = loadarff(StringIO(f2.read()))
-        f2.close()
+        with open(test1) as f1:
+            data1, meta1 = loadarff(f1)
+        with open(test1) as f2:
+            data2, meta2 = loadarff(StringIO(f2.read()))
         assert_(data1 == data2)
         assert_(repr(meta1) == repr(meta2))
 
-    @pytest.mark.skipif(sys.version_info < (3, 6),
-                        reason='Passing path-like objects to IO functions requires Python >= 3.6')
     def test_path(self):
         # Test reading from `pathlib.Path` object
         from pathlib import Path
@@ -97,34 +90,37 @@ class TestData(object):
         assert_(repr(meta1) == repr(meta2))
 
 
-class TestMissingData(object):
+class TestMissingData:
     def test_missing(self):
         data, meta = loadarff(missing)
         for i in ['yop', 'yap']:
             assert_array_almost_equal(data[i], expect_missing[i])
 
 
-class TestNoData(object):
+class TestNoData:
     def test_nodata(self):
         # The file nodata.arff has no data in the @DATA section.
         # Reading it should result in an array with length 0.
         nodata_filename = os.path.join(data_path, 'nodata.arff')
         data, meta = loadarff(nodata_filename)
-        expected_dtype = np.dtype([('sepallength', '<f8'),
-                                   ('sepalwidth', '<f8'),
-                                   ('petallength', '<f8'),
-                                   ('petalwidth', '<f8'),
+        if sys.byteorder == 'big':
+            end = '>'
+        else:
+            end = '<'
+        expected_dtype = np.dtype([('sepallength', f'{end}f8'),
+                                   ('sepalwidth', f'{end}f8'),
+                                   ('petallength', f'{end}f8'),
+                                   ('petalwidth', f'{end}f8'),
                                    ('class', 'S15')])
         assert_equal(data.dtype, expected_dtype)
         assert_equal(data.size, 0)
 
 
-class TestHeader(object):
+class TestHeader:
     def test_type_parsing(self):
         # Test parsing type of attribute from their value.
-        ofile = open(test2)
-        rel, attrs = read_header(ofile)
-        ofile.close()
+        with open(test2) as ofile:
+            rel, attrs = read_header(ofile)
 
         expected = ['numeric', 'numeric', 'numeric', 'numeric', 'numeric',
                     'numeric', 'string', 'string', 'nominal', 'nominal']
@@ -135,17 +131,15 @@ class TestHeader(object):
     def test_badtype_parsing(self):
         # Test parsing wrong type of attribute from their value.
         def badtype_read():
-            ofile = open(test3)
-            rel, attrs = read_header(ofile)
-            ofile.close()
+            with open(test3) as ofile:
+                _, _ = read_header(ofile)
 
         assert_raises(ParseArffError, badtype_read)
 
     def test_fullheader1(self):
         # Parsing trivial header with nothing.
-        ofile = open(test1)
-        rel, attrs = read_header(ofile)
-        ofile.close()
+        with open(test1) as ofile:
+            rel, attrs = read_header(ofile)
 
         # Test relation
         assert_(rel == 'test1')
@@ -153,7 +147,7 @@ class TestHeader(object):
         # Test numerical attributes
         assert_(len(attrs) == 5)
         for i in range(4):
-            assert_(attrs[i].name == 'attr%d' % i)
+            assert_(attrs[i].name == f'attr{i}')
             assert_(attrs[i].type_name == 'numeric')
 
         # Test nominal attribute
@@ -161,9 +155,8 @@ class TestHeader(object):
         assert_(attrs[4].values == ('class0', 'class1', 'class2', 'class3'))
 
     def test_dateheader(self):
-        ofile = open(test7)
-        rel, attrs = read_header(ofile)
-        ofile.close()
+        with open(test7) as ofile:
+            rel, attrs = read_header(ofile)
 
         assert_(rel == 'test7')
 
@@ -186,14 +179,13 @@ class TestHeader(object):
 
     def test_dateheader_unsupported(self):
         def read_dateheader_unsupported():
-            ofile = open(test8)
-            rel, attrs = read_header(ofile)
-            ofile.close()
+            with open(test8) as ofile:
+                _, _ = read_header(ofile)
 
         assert_raises(ValueError, read_dateheader_unsupported)
 
 
-class TestDateAttribute(object):
+class TestDateAttribute:
     def setup_method(self):
         self.data, self.meta = loadarff(test7)
 
@@ -261,7 +253,7 @@ class TestDateAttribute(object):
         assert_raises(ParseArffError, loadarff, test8)
 
 
-class TestRelationalAttribute(object):
+class TestRelationalAttribute:
     def setup_method(self):
         self.data, self.meta = loadarff(test9)
 
@@ -284,7 +276,7 @@ class TestRelationalAttribute(object):
 
     def test_data(self):
         dtype_instance = [('attr_date', 'datetime64[D]'),
-                          ('attr_number', np.float_)]
+                          ('attr_number', np.float64)]
 
         expected = [
             np.array([('1999-01-31', 1), ('1935-11-27', 10)],
@@ -307,7 +299,7 @@ class TestRelationalAttribute(object):
                                expected[i])
 
 
-class TestRelationalAttributeLong(object):
+class TestRelationalAttributeLong:
     def setup_method(self):
         self.data, self.meta = loadarff(test10)
 
@@ -324,18 +316,20 @@ class TestRelationalAttributeLong(object):
         assert_equal(relational.attributes[0].type_name, 'numeric')
 
     def test_data(self):
-        dtype_instance = [('attr_number', np.float_)]
+        dtype_instance = [('attr_number', np.float64)]
 
-        expected = np.array([(n,) for n in xrange(30000)],
+        expected = np.array([(n,) for n in range(30000)],
                             dtype=dtype_instance)
 
         assert_array_equal(self.data["attr_relational"][0],
                            expected)
 
 
-class TestQuotedNominal(object):
+class TestQuotedNominal:
     """
-    Regression test for issue #10232 : Exception in loadarff with quoted nominal attributes.
+    Regression test for issue #10232:
+
+    Exception in loadarff with quoted nominal attributes.
     """
 
     def setup_method(self):
@@ -354,7 +348,7 @@ class TestQuotedNominal(object):
 
     def test_data(self):
 
-        age_dtype_instance = np.float_
+        age_dtype_instance = np.float64
         smoker_dtype_instance = '<S3'
 
         age_expected = np.array([
@@ -379,9 +373,11 @@ class TestQuotedNominal(object):
         assert_array_equal(self.data["smoker"], smoker_expected)
 
 
-class TestQuotedNominalSpaces(object):
+class TestQuotedNominalSpaces:
     """
-    Regression test for issue #10232 : Exception in loadarff with quoted nominal attributes.
+    Regression test for issue #10232:
+
+    Exception in loadarff with quoted nominal attributes.
     """
 
     def setup_method(self):
@@ -400,7 +396,7 @@ class TestQuotedNominalSpaces(object):
 
     def test_data(self):
 
-        age_dtype_instance = np.float_
+        age_dtype_instance = np.float64
         smoker_dtype_instance = '<S5'
 
         age_expected = np.array([

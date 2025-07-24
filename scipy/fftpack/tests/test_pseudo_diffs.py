@@ -1,7 +1,5 @@
 # Created by Pearu Peterson, September 2002
 
-from __future__ import division, print_function, absolute_import
-
 __usage__ = """
 Build fftpack:
   python setup_fftpack.py build
@@ -81,7 +79,7 @@ def direct_shift(x,a,period=None):
     return ifft(fft(x)*exp(k*a)).real
 
 
-class TestDiff(object):
+class TestDiff:
 
     def test_definition(self):
         for n in [16,17,64,127,32]:
@@ -156,9 +154,10 @@ class TestDiff(object):
         assert_array_almost_equal(diff(2*cos(2*x),-1),sin(2*x))
 
     def test_random_even(self):
+        rng = np.random.default_rng(1234)
         for k in [0,2,4,6]:
             for n in [60,32,64,56,55]:
-                f = random((n,))
+                f = rng.random((n,))
                 af = sum(f,axis=0)/n
                 f = f-af
                 # zeroing Nyquist mode:
@@ -168,9 +167,10 @@ class TestDiff(object):
                 assert_array_almost_equal(diff(diff(f,-k),k),f)
 
     def test_random_odd(self):
+        rng = np.random.default_rng(1234)
         for k in [0,1,2,3,4,5,6]:
             for n in [33,65,55]:
-                f = random((n,))
+                f = rng.random((n,))
                 af = sum(f,axis=0)/n
                 f = f-af
                 assert_almost_equal(sum(f,axis=0),0.0)
@@ -178,9 +178,10 @@ class TestDiff(object):
                 assert_array_almost_equal(diff(diff(f,-k),k),f)
 
     def test_zero_nyquist(self):
+        rng = np.random.default_rng(1234)
         for k in [0,1,2,3,4,5,6]:
             for n in [32,33,64,56,55]:
-                f = random((n,))
+                f = rng.random((n,))
                 af = sum(f,axis=0)/n
                 f = f-af
                 # zeroing Nyquist mode:
@@ -190,7 +191,7 @@ class TestDiff(object):
                 assert_array_almost_equal(diff(diff(f,-k),k),f)
 
 
-class TestTilbert(object):
+class TestTilbert:
 
     def test_definition(self):
         for h in [0.1,0.5,1,5.5,10]:
@@ -214,9 +215,10 @@ class TestTilbert(object):
                 assert_array_almost_equal(direct_tilbert(direct_itilbert(f,h),h),f)
 
     def test_random_odd(self):
+        rng = np.random.default_rng(1234)
         for h in [0.1,0.5,1,5.5,10]:
             for n in [33,65,55]:
-                f = random((n,))
+                f = rng.random((n,))
                 af = sum(f,axis=0)/n
                 f = f-af
                 assert_almost_equal(sum(f,axis=0),0.0)
@@ -224,7 +226,7 @@ class TestTilbert(object):
                 assert_array_almost_equal(tilbert(itilbert(f,h),h),f)
 
 
-class TestITilbert(object):
+class TestITilbert:
 
     def test_definition(self):
         for h in [0.1,0.5,1,5.5,10]:
@@ -239,7 +241,7 @@ class TestITilbert(object):
                                           direct_itilbert(sin(2*x),h))
 
 
-class TestHilbert(object):
+class TestHilbert:
 
     def test_definition(self):
         for n in [16,17,64,127]:
@@ -261,8 +263,9 @@ class TestHilbert(object):
             assert_array_almost_equal(y,y2)
 
     def test_random_odd(self):
+        rng = np.random.default_rng(1234)
         for n in [33,65,55]:
-            f = random((n,))
+            f = rng.random((n,))
             af = sum(f,axis=0)/n
             f = f-af
             assert_almost_equal(sum(f,axis=0),0.0)
@@ -270,8 +273,9 @@ class TestHilbert(object):
             assert_array_almost_equal(hilbert(ihilbert(f)),f)
 
     def test_random_even(self):
+        rng = np.random.default_rng(1234)
         for n in [32,64,56]:
-            f = random((n,))
+            f = rng.random((n,))
             af = sum(f,axis=0)/n
             f = f-af
             # zeroing Nyquist mode:
@@ -281,7 +285,7 @@ class TestHilbert(object):
             assert_array_almost_equal(hilbert(ihilbert(f)),f)
 
 
-class TestIHilbert(object):
+class TestIHilbert:
 
     def test_definition(self):
         for n in [16,17,64,127]:
@@ -303,7 +307,7 @@ class TestIHilbert(object):
             assert_array_almost_equal(y,y2)
 
 
-class TestShift(object):
+class TestShift:
 
     def test_definition(self):
         for n in [18,17,64,127,32,2048,256]:
@@ -320,11 +324,11 @@ class TestShift(object):
             assert_array_almost_equal(shift(sin(x),pi/2),cos(x))
 
 
-class TestOverwrite(object):
+class TestOverwrite:
     """Check input overwrite behavior """
 
-    real_dtypes = [np.float32, np.float64]
-    dtypes = real_dtypes + [np.complex64, np.complex128]
+    real_dtypes = (np.float32, np.float64)
+    dtypes = real_dtypes + (np.complex64, np.complex128)
 
     def _check(self, x, routine, *args, **kwargs):
         x2 = x.copy()
@@ -334,14 +338,16 @@ class TestOverwrite(object):
             sig += repr(args)
         if kwargs:
             sig += repr(kwargs)
-        assert_equal(x2, x, err_msg="spurious overwrite in %s" % sig)
+        assert_equal(x2, x, err_msg=f"spurious overwrite in {sig}")
 
     def _check_1d(self, routine, dtype, shape, *args, **kwargs):
-        np.random.seed(1234)
+        # rng = np.random.default_rng(1234)
+        rng = np.random.RandomState(1234)
+        # np.random.seed(1234)
         if np.issubdtype(dtype, np.complexfloating):
-            data = np.random.randn(*shape) + 1j*np.random.randn(*shape)
+            data = rng.randn(*shape) + 1j*rng.randn(*shape)
         else:
-            data = np.random.randn(*shape)
+            data = rng.randn(*shape)
         data = data.astype(dtype)
         self._check(data, routine, *args, **kwargs)
 

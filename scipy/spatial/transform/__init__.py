@@ -4,24 +4,27 @@ Spatial Transformations (:mod:`scipy.spatial.transform`)
 
 .. currentmodule:: scipy.spatial.transform
 
-This package implements various spatial transformations. For now,
-only rotations are supported.
+This package implements various spatial transformations. For now, rotations
+and rigid transforms (rotations and translations) are supported.
 
 Rotations in 3 dimensions
 -------------------------
 .. autosummary::
    :toctree: generated/
 
+   RigidTransform
    Rotation
    Slerp
    RotationSpline
 """
-from __future__ import division, print_function, absolute_import
-
-from .rotation import Rotation, Slerp
+from ._rotation import Rotation, Slerp
+from ._rigid_transform import RigidTransform
 from ._rotation_spline import RotationSpline
 
-__all__ = ['Rotation', 'Slerp', 'RotationSpline']
+# Deprecated namespaces, to be removed in v2.0.0
+from . import rotation
+
+__all__ = ['Rotation', 'Slerp', 'RotationSpline', 'RigidTransform']
 
 from scipy._lib._testutils import PytestTester
 test = PytestTester(__name__)

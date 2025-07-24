@@ -9,31 +9,25 @@ Fourier Transforms (:mod:`scipy.fft`)
 
 
 Fourier analysis is a method for expressing a function as a sum of periodic
-components, and for recovering the signal from those components.  When both
+components, and for recovering the signal from those components. When both
 the function and its Fourier transform are replaced with discretized
-counterparts, it is called the discrete Fourier transform (DFT).  The DFT has
+counterparts, it is called the discrete Fourier transform (DFT). The DFT has
 become a mainstay of numerical computing in part because of a very fast
 algorithm for computing it, called the Fast Fourier Transform (FFT), which was
 known to Gauss (1805) and was brought to light in its current form by Cooley
-and Tukey [CT65]_.  Press et al. [NR07]_ provide an accessible introduction to
+and Tukey [CT65]_. Press et al. [NR07]_ provide an accessible introduction to
 Fourier analysis and its applications.
 
-.. note::
 
-   PyFFTW_ provides a way to replace a number of functions in `scipy.fft`
-   with its own functions, which are usually significantly faster, via
-   pyfftw.interfaces_.  Because PyFFTW_ relies on the GPL-licensed FFTW_ it
-   cannot be included in SciPy.  Users for whom the speed of FFT routines is
-   critical should consider installing PyFFTW_.
-
+.. _tutorial_FFT:
 
 Fast Fourier transforms
 -----------------------
 
-One dimensional discrete Fourier transforms
+1-D discrete Fourier transforms
 ___________________________________________
 
-The FFT `y[k]` of length :math:`N` of the length-:math:`N` sequence `x[n]` is
+The FFT ``y[k]`` of length :math:`N` of the length-:math:`N` sequence ``x[n]`` is
 defined as
 
 .. math::
@@ -47,9 +41,10 @@ and the inverse transform is defined as follows
     x[n] = \frac{1}{N} \sum_{k=0}^{N-1} e^{2 \pi j \frac{k n}{N} } y[k] \, .
 
 These transforms can be calculated by means of :func:`fft` and :func:`ifft`,
-respectively as shown in the following example.
+respectively, as shown in the following example.
 
 >>> from scipy.fft import fft, ifft
+>>> import numpy as np
 >>> x = np.array([1.0, 2.0, 1.0, -1.0, 1.5])
 >>> y = fft(x)
 >>> y
@@ -76,8 +71,8 @@ which corresponds to :math:`y[0]`. For N even, the elements
 :math:`y[1]...y[N/2-1]` contain the positive-frequency terms, and the elements
 :math:`y[N/2]...y[N-1]` contain the negative-frequency terms, in order of
 decreasingly negative frequency. For N odd, the elements
-:math:`y[1]...y[(N-1)/2]` contain the positive- frequency terms, and the
-elements :math:`y[(N+1)/2]...y[N-1]` contain the negative- frequency terms, in
+:math:`y[1]...y[(N-1)/2]` contain the positive-frequency terms, and the
+elements :math:`y[(N+1)/2]...y[N-1]` contain the negative-frequency terms, in
 order of decreasingly negative frequency.
 
 In case the sequence x is real-valued, the values of :math:`y[n]` for positive
@@ -88,23 +83,25 @@ corresponding to positive frequencies is plotted.
 The example plots the FFT of the sum of two sines.
 
 .. plot::
+    :alt: "This code generates an X-Y plot showing amplitude on the Y axis vs frequency on the X axis. A single blue trace has an amplitude of zero all the way across with the exception of two peaks. The taller first peak is at 50 Hz with a second peak at 80 Hz."
 
-    >>> from scipy.fft import fft
+    >>> from scipy.fft import fft, fftfreq
+    >>> import numpy as np
     >>> # Number of sample points
     >>> N = 600
     >>> # sample spacing
     >>> T = 1.0 / 800.0
-    >>> x = np.linspace(0.0, N*T, N)
+    >>> x = np.linspace(0.0, N*T, N, endpoint=False)
     >>> y = np.sin(50.0 * 2.0*np.pi*x) + 0.5*np.sin(80.0 * 2.0*np.pi*x)
     >>> yf = fft(y)
-    >>> xf = np.linspace(0.0, 1.0/(2.0*T), N//2)
+    >>> xf = fftfreq(N, T)[:N//2]
     >>> import matplotlib.pyplot as plt
     >>> plt.plot(xf, 2.0/N * np.abs(yf[0:N//2]))
     >>> plt.grid()
     >>> plt.show()
 
 
-The FFT input signal is inherently truncated. This truncation can be modelled
+The FFT input signal is inherently truncated. This truncation can be modeled
 as multiplication of an infinite signal with a rectangular window function. In
 the spectral domain this multiplication becomes convolution of the signal
 spectrum with the window function spectrum, being of form :math:`\sin(x)/x`.
@@ -115,19 +112,21 @@ and shows the effect of windowing (the zero component of the FFT has been
 truncated for illustrative purposes).
 
 .. plot::
+    :alt: "This code generates an X-Y log-linear plot with amplitude on the Y axis vs frequency on the X axis. The first trace is the FFT with two peaks at 50 and 80 Hz and a noise floor around an amplitude of 1e-2. The second trace is the windowed FFT and has the same two peaks but the noise floor is much lower around an amplitude of 1e-7 due to the window function."
 
-    >>> from scipy.fft import fft
+    >>> from scipy.fft import fft, fftfreq
+    >>> import numpy as np
     >>> # Number of sample points
     >>> N = 600
     >>> # sample spacing
     >>> T = 1.0 / 800.0
-    >>> x = np.linspace(0.0, N*T, N)
+    >>> x = np.linspace(0.0, N*T, N, endpoint=False)
     >>> y = np.sin(50.0 * 2.0*np.pi*x) + 0.5*np.sin(80.0 * 2.0*np.pi*x)
     >>> yf = fft(y)
-    >>> from scipy.signal import blackman
+    >>> from scipy.signal.windows import blackman
     >>> w = blackman(N)
     >>> ywf = fft(y*w)
-    >>> xf = np.linspace(0.0, 1.0/(2.0*T), N//2)
+    >>> xf = fftfreq(N, T)[:N//2]
     >>> import matplotlib.pyplot as plt
     >>> plt.semilogy(xf[1:N//2], 2.0/N * np.abs(yf[1:N//2]), '-b')
     >>> plt.semilogy(xf[1:N//2], 2.0/N * np.abs(ywf[1:N//2]), '-r')
@@ -159,13 +158,15 @@ The example below plots the FFT of two complex exponentials; note the
 asymmetric spectrum.
 
 .. plot::
+    :alt: "This code generates an X-Y plot with amplitude on the Y axis vs frequency on the X axis. The trace is zero-valued across the plot except for two sharp peaks at -80 and 50 Hz. The 50 Hz peak on the right is twice as tall."
 
     >>> from scipy.fft import fft, fftfreq, fftshift
+    >>> import numpy as np
     >>> # number of signal points
     >>> N = 400
     >>> # sample spacing
     >>> T = 1.0 / 800.0
-    >>> x = np.linspace(0.0, N*T, N)
+    >>> x = np.linspace(0.0, N*T, N, endpoint=False)
     >>> y = np.exp(50.0 * 1.j * 2.0*np.pi*x) + 0.5*np.exp(-80.0 * 1.j * 2.0*np.pi*x)
     >>> yf = fft(y)
     >>> xf = fftfreq(N, T)
@@ -181,7 +182,7 @@ The function :func:`rfft` calculates the FFT of a real sequence and outputs the
 complex FFT coefficients :math:`y[n]` for only half of the frequency range. The
 remaining negative frequency components are implied by the Hermitian symmetry of
 the FFT for a real input (``y[n] = conj(y[-n])``). In case of N being even:
-:math:`[Re(y[0]) + 0j, y[1], ..., Re(y[N/2]) + 0j]`; in case N being odd
+:math:`[Re(y[0]) + 0j, y[1], ..., Re(y[N/2]) + 0j]`; in case of N being odd
 :math:`[Re(y[0]) + 0j, y[1], ..., y[N/2]`. The terms shown explicitly as
 :math:`Re(y[k]) + 0j` are restricted to be purely real since, by the hermitian
 property, they are their own complex conjugate.
@@ -210,14 +211,14 @@ array([ 4.5       +0.j        ,  2.08155948-1.65109876j,
 array([ 4.5       +0.j        ,  2.08155948-1.65109876j,
         -1.83155948+1.60822041j])
 
-Notice that the :func:`rfft` of odd and even length signals are the same shape.
-By default, :func:`irfft` assumes the ouput signal should be of even length. And
-so for odd signals, will give the wrong result:
+Notice that the :func:`rfft` of odd and even length signals are of the same shape.
+By default, :func:`irfft` assumes the output signal should be of even length. And
+so, for odd signals, it will give the wrong result:
 
 >>> irfft(yr)
 array([ 1.70788987,  2.40843925, -0.37366961,  0.75734049])
 
-To recover the original odd length signal, we **must** pass the output shape by
+To recover the original odd-length signal, we **must** pass the output shape by
 the `n` parameter.
 
 >>> irfft(yr, n=len(x))
@@ -225,25 +226,27 @@ array([ 1. ,  2. ,  1. , -1. ,  1.5])
 
 
 
-Two and n-dimensional discrete Fourier transforms
+2- and N-D discrete Fourier transforms
 _________________________________________________
 
-The functions :func:`fft2` and :func:`ifft2` provide 2-dimensional FFT, and
-IFFT, respectively. Similar, :func:`fftn` and :func:`ifftn` provide
-n-dimensional FFT, and IFFT, respectively.
+The functions :func:`fft2` and :func:`ifft2` provide 2-D FFT and
+IFFT, respectively. Similarly, :func:`fftn` and :func:`ifftn` provide
+N-D FFT, and IFFT, respectively.
 
-For real input signals, similar to :func:`rfft`, we have the functions
-:func:`rfft2` and :func:`irfft2` for 2-dimensional real transforms;
-:func:`rfftn` and :func:`irfftn` for n-dimensional real transforms.
+For real-input signals, similarly to :func:`rfft`, we have the functions
+:func:`rfft2` and :func:`irfft2` for 2-D real transforms;
+:func:`rfftn` and :func:`irfftn` for N-D real transforms.
 
-The example below demonstrates a 2-dimensional IFFT and plots the resulting
-(2-dimensional) time-domain signals.
+The example below demonstrates a 2-D IFFT and plots the resulting
+(2-D) time-domain signals.
 
 .. plot::
+    :alt: "This code generates six heatmaps arranged in a 2x3 grid. The top row shows mostly blank canvases with the exception of two tiny red peaks on each image. The bottom row shows the real-part of the inverse FFT of each image above it. The first column has two dots arranged horizontally in the top image and in the bottom image a smooth grayscale plot of 5 black vertical stripes representing the 2-D time domain signal. The second column has two dots arranged vertically in the top image and in the bottom image a smooth grayscale plot of 5 horizontal black stripes representing the 2-D time domain signal. In the last column the top image has two dots diagonally located; the corresponding image below has perhaps 20 black stripes at a 60 degree angle."
 
     >>> from scipy.fft import ifftn
     >>> import matplotlib.pyplot as plt
     >>> import matplotlib.cm as cm
+    >>> import numpy as np
     >>> N = 30
     >>> f, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plt.subplots(2, 3, sharex='col', sharey='row')
     >>> xf = np.zeros((N,N))
@@ -272,7 +275,7 @@ Discrete Cosine Transforms
 
 SciPy provides a DCT with the function :func:`dct` and a corresponding IDCT
 with the function :func:`idct`. There are 8 types of the DCT [WPC]_, [Mak]_;
-however, only the first 3 types are implemented in scipy. "The" DCT generally
+however, only the first 4 types are implemented in scipy. "The" DCT generally
 refers to DCT type 2, and "the" Inverse DCT generally refers to DCT type 3. In
 addition, the DCT coefficients can be normalized differently (for most types,
 scipy provides ``None`` and ``ortho``). Two parameters of the dct/idct
@@ -294,7 +297,7 @@ SciPy uses the following definition of the unnormalized DCT-I
     \cos\left(\frac{\pi nk}{N-1}\right),
     \qquad 0 \le k < N.
 
-Note that the DCT-I is only supported for input size > 1
+Note that the DCT-I is only supported for input size > 1.
 
 Type II DCT
 ___________
@@ -320,7 +323,7 @@ In this case, the DCT "base functions" :math:`\phi_k[n] = 2 f \cos
 
 .. math::
 
-   \sum_{n=0}^{N-1} \phi_k[n] \phi_l[n] = \delta_{lk}
+   \sum_{n=0}^{N-1} \phi_k[n] \phi_l[n] = \delta_{lk}.
 
 
 Type III DCT
@@ -342,14 +345,33 @@ or, for ``norm='ortho'``:
     \cos\left({\pi n(2k+1) \over 2N}\right) \qquad 0 \le k < N.
 
 
+Type IV DCT
+___________
+
+SciPy uses the following definition of the unnormalized DCT-IV
+(``norm=None``):
+
+.. math::
+
+    y[k] = 2 \sum_{n=0}^{N-1} x[n] \cos\left({\pi (2n+1)(2k+1) \over 4N}\right)
+    \qquad 0 \le k < N,
+
+or, for ``norm='ortho'``:
+
+.. math::
+
+    y[k] = \sqrt{2\over N}\sum_{n=0}^{N-1} x[n] \cos\left({\pi (2n+1)(2k+1) \over 4N}\right)
+    \qquad 0 \le k < N
+
+
 DCT and IDCT
 ____________
 
 
 The (unnormalized) DCT-III is the inverse of the (unnormalized) DCT-II, up to a
-factor `2N`. The orthonormalized DCT-III is exactly the inverse of the
+factor of ``2N``. The orthonormalized DCT-III is exactly the inverse of the
 orthonormalized DCT- II. The function :func:`idct` performs the mappings between
-the DCT and IDCT types, as well as performing the correct normalization.
+the DCT and IDCT types, as well as the correct normalization.
 
 The following example shows the relation between DCT and IDCT for different
 types and normalizations.
@@ -357,13 +379,13 @@ types and normalizations.
 >>> from scipy.fft import dct, idct
 >>> x = np.array([1.0, 2.0, 1.0, -1.0, 1.5])
 
-The DCT-II and DCT-III are each others inverses, so for an orthonormal transform
+The DCT-II and DCT-III are each other's inverses, so for an orthonormal transform
 we return back to the original signal.
 
 >>> dct(dct(x, type=2, norm='ortho'), type=3, norm='ortho')
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
 
-Doing the same under default normalization however, we pick up an extra scaling
+Doing the same under default normalization, however, we pick up an extra scaling
 factor of :math:`2N=10` since the forward transform is unnormalized.
 
 >>> dct(dct(x, type=2), type=3)
@@ -376,8 +398,8 @@ giving a correctly normalized result.
 >>> idct(dct(x, type=2), type=2)
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
 
-Analogous results can be seen for the DCT-I which is its own inverse up to a
-factor of :math:`2(N-1)`
+Analogous results can be seen for the DCT-I, which is its own inverse up to a
+factor of :math:`2(N-1)`.
 
 >>> dct(dct(x, type=1, norm='ortho'), type=1, norm='ortho')
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
@@ -388,7 +410,7 @@ array([ 8. ,  16.,  8. , -8. ,  12.])
 >>> idct(dct(x, type=1), type=1)
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
 
-And for the DCT-IV which is also its own inverse up to a factor of :math:`2N`
+And for the DCT-IV, which is also its own inverse up to a factor of :math:`2N`.
 
 >>> dct(dct(x, type=4, norm='ortho'), type=4, norm='ortho')
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
@@ -408,7 +430,7 @@ Zeroing out the other coefficients leads to a small reconstruction error, a
 fact which is exploited in lossy signal compression (e.g. JPEG compression).
 
 The example below shows a signal x and two reconstructions (:math:`x_{20}` and
-:math:`x_{15}`)from the signal's DCT coefficients. The signal :math:`x_{20}`
+:math:`x_{15}`) from the signal's DCT coefficients. The signal :math:`x_{20}`
 is reconstructed from the first 20 DCT coefficients, :math:`x_{15}` is
 reconstructed from the first 15 DCT coefficients. It can be seen that the
 relative error of using 20 coefficients is still very small (~0.1%), but
@@ -416,25 +438,26 @@ provides a five-fold compression rate.
 
 
 .. plot::
+    :alt: "This code generates an X-Y plot showing amplitude on the Y axis and time on the X axis. The first blue trace is the original signal and starts at amplitude 1 and oscillates down to 0 amplitude over the duration of the plot resembling a frequency chirp. The second red trace is the x_20 reconstruction using the DCT and closely follows the original signal in the high amplitude region but it is unclear to the right side of the plot. The third green trace is the x_15 reconstruction using the DCT and is less precise than the x_20 reconstruction but still similar to x."
 
     >>> from scipy.fft import dct, idct
     >>> import matplotlib.pyplot as plt
     >>> N = 100
-    >>> t = np.linspace(0,20,N)
+    >>> t = np.linspace(0,20,N, endpoint=False)
     >>> x = np.exp(-t/3)*np.cos(2*t)
     >>> y = dct(x, norm='ortho')
     >>> window = np.zeros(N)
     >>> window[:20] = 1
     >>> yr = idct(y*window, norm='ortho')
     >>> sum(abs(x-yr)**2) / sum(abs(x)**2)
-    0.0010901402257
+    0.0009872817275276098
     >>> plt.plot(t, x, '-bx')
     >>> plt.plot(t, yr, 'ro')
     >>> window = np.zeros(N)
     >>> window[:15] = 1
     >>> yr = idct(y*window, norm='ortho')
     >>> sum(abs(x-yr)**2) / sum(abs(x)**2)
-    0.0718818065008
+    0.06196643004256714
     >>> plt.plot(t, yr, 'g+')
     >>> plt.legend(['x', '$x_{20}$', '$x_{15}$'])
     >>> plt.grid()
@@ -446,8 +469,8 @@ Discrete Sine Transforms
 SciPy provides a DST [Mak]_ with the function :func:`dst` and a corresponding IDST
 with the function :func:`idst`.
 
-There are theoretically 8 types of the DST for different combinations of
-even/odd boundary conditions and boundary off sets [WPS]_, only the first 3
+There are, theoretically, 8 types of the DST for different combinations of
+even/odd boundary conditions and boundary offsets [WPS]_, only the first 4
 types are implemented in scipy.
 
 Type I DST
@@ -462,7 +485,7 @@ definition of the unnormalized DST-I (``norm=None``):
     \right), \qquad 0 \le k < N.
 
 Note also that the DST-I is only supported for input size > 1. The
-(unnormalized) DST-I is its own inverse, up to a factor `2(N+1)`.
+(unnormalized) DST-I is its own inverse, up to a factor of ``2(N+1)``.
 
 Type II DST
 ___________
@@ -486,24 +509,42 @@ the following definition of the unnormalized DST-III (``norm=None``):
     y[k] = (-1)^k x[N-1] + 2 \sum_{n=0}^{N-2} x[n] \sin \left( {\pi
     (n+1)(k+1/2)} \over N \right), \qquad 0 \le k < N.
 
+Type IV DST
+___________
+
+SciPy uses the following definition of the unnormalized DST-IV
+(``norm=None``):
+
+.. math::
+
+    y[k] = 2 \sum_{n=0}^{N-1} x[n] \sin\left({\pi (2n+1)(2k+1) \over 4N}\right)
+    \qquad 0 \le k < N,
+
+or, for ``norm='ortho'``:
+
+.. math::
+
+    y[k] = \sqrt{2\over N}\sum_{n=0}^{N-1} x[n] \sin\left({\pi (2n+1)(2k+1) \over 4N}\right)
+    \qquad 0 \le k < N,
+
 
 DST and IDST
 ____________
 
 
-The following example below shows the relation between DST and IDST for
+The following example shows the relation between DST and IDST for
 different types and normalizations.
 
 >>> from scipy.fft import dst, idst
 >>> x = np.array([1.0, 2.0, 1.0, -1.0, 1.5])
 
-The DST-II and DST-III are each others inverses, so for an orthonormal transform
+The DST-II and DST-III are each other's inverses, so for an orthonormal transform
 we return back to the original signal.
 
 >>> dst(dst(x, type=2, norm='ortho'), type=3, norm='ortho')
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
 
-Doing the same under default normalization however, we pick up an extra scaling
+Doing the same under default normalization, however, we pick up an extra scaling
 factor of :math:`2N=10` since the forward transform is unnormalized.
 
 >>> dst(dst(x, type=2), type=3)
@@ -515,8 +556,8 @@ giving a correctly normalized result.
 >>> idst(dst(x, type=2), type=2)
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
 
-Analogous results can be seen for the DST-I which is its own inverse up to a
-factor of :math:`2(N-1)`
+Analogous results can be seen for the DST-I, which is its own inverse up to a
+factor of :math:`2(N-1)`.
 
 >>> dst(dst(x, type=1, norm='ortho'), type=1, norm='ortho')
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
@@ -527,7 +568,7 @@ array([ 12.,  24.,  12., -12.,  18.])
 >>> idst(dst(x, type=1), type=1)
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
 
-And for the DST-IV which is also its own inverse up to a factor of :math:`2N`
+And for the DST-IV, which is also its own inverse up to a factor of :math:`2N`.
 
 >>> dst(dst(x, type=4, norm='ortho'), type=4, norm='ortho')
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
@@ -537,6 +578,39 @@ array([ 10.,  20.,  10., -10.,  15.])
 >>>  # no scaling factor
 >>> idst(dst(x, type=4), type=4)
 array([ 1. ,  2. ,  1. , -1. ,  1.5])
+
+
+Fast Hankel Transform
+---------------------
+
+SciPy provides the functions ``fht`` and ``ifht`` to perform the Fast
+Hankel Transform (FHT) and its inverse (IFHT) on logarithmically-spaced input
+arrays.
+
+The FHT is the discretised version of the continuous Hankel transform defined
+by [Ham00]_
+
+.. math::
+
+    A(k) = \int_{0}^{\infty} \! a(r) \, J_{\mu}(kr) \, k \, dr \;,
+
+with :math:`J_{\mu}` the Bessel function of order :math:`\mu`. Under a change
+of variables :math:`r \to \log r`, :math:`k \to \log k`, this becomes
+
+.. math::
+
+    A(e^{\log k})
+    = \int_{0}^{\infty} \! a(e^{\log r}) \, J_{\mu}(e^{\log k + \log r})
+                                        \, e^{\log k + \log r} \, d{\log r}
+
+which is a convolution in logarithmic space. The FHT algorithm uses the FFT
+to perform this convolution on discrete input data.
+
+Care must be taken to minimise numerical ringing due to the circular nature
+of FFT convolution. To ensure that the low-ringing condition [Ham00]_ holds,
+the output array can be slightly shifted by an offset computed using the
+``fhtoffset`` function.
+
 
 References
 ----------
@@ -553,13 +627,11 @@ References
        `IEEE Transactions on acoustics, speech and signal processing`
        vol. 28(1), pp. 27-34, :doi:`10.1109/TASSP.1980.1163351`
 
+.. [Ham00] A. J. S. Hamilton, 2000, "Uncorrelated modes of the non-linear power
+       spectrum", *MNRAS*, 312, 257. :doi:`10.1046/j.1365-8711.2000.03071.x`
+
 .. [WPW] https://en.wikipedia.org/wiki/Window_function
 
 .. [WPC] https://en.wikipedia.org/wiki/Discrete_cosine_transform
 
 .. [WPS] https://en.wikipedia.org/wiki/Discrete_sine_transform
-
-
-.. _FFTW: http://www.fftw.org/
-.. _PyFFTW: https://hgomersall.github.io/pyFFTW/
-.. _pyfftw.interfaces: https://hgomersall.github.io/pyFFTW/pyfftw/interfaces/interfaces.html

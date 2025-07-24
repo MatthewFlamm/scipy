@@ -1,27 +1,24 @@
 #
 # Created by: Pearu Peterson, March 2002
 #
-""" Test functions for scipy.linalg.matfuncs module
+""" Test functions for scipy.linalg._matfuncs module
 
 """
-from __future__ import division, print_function, absolute_import
-
 import math
+import warnings
 
 import numpy as np
 from numpy import array, eye, exp, random
-from numpy.linalg import matrix_power
 from numpy.testing import (
         assert_allclose, assert_, assert_array_almost_equal, assert_equal,
         assert_array_almost_equal_nulp)
-from scipy._lib._numpy_compat import suppress_warnings
 
-from scipy.sparse import csc_matrix, SparseEfficiencyWarning
-from scipy.sparse.construct import eye as speye
-from scipy.sparse.linalg.matfuncs import (expm, _expm,
+from scipy.sparse import csc_array, SparseEfficiencyWarning
+from scipy.sparse._construct import eye_array
+from scipy.sparse.linalg._matfuncs import (expm, _expm,
         ProductOperator, MatrixPowerOperator,
-        _onenorm_matrix_power_nnm)
-from scipy.sparse.sputils import matrix
+        _onenorm_matrix_power_nnm, matrix_power)
+from scipy.sparse._sputils import matrix
 from scipy.linalg import logm
 from scipy.special import factorial, binom
 import scipy.sparse
@@ -70,14 +67,28 @@ def test_onenorm_matrix_power_nnm():
             expected = np.linalg.norm(Mp, 1)
             assert_allclose(observed, expected)
 
+def test_matrix_power():
+    np.random.seed(1234)
+    row, col = np.random.randint(0, 4, size=(2, 6))
+    data = np.random.random(size=(6,))
+    Amat = csc_array((data, (row, col)), shape=(4, 4))
+    A = csc_array((data, (row, col)), shape=(4, 4))
+    Adense = A.toarray()
+    for power in (2, 5, 6):
+        Apow = matrix_power(A, power).toarray()
+        Amat_pow = matrix_power(Amat, power).toarray()
+        Adense_pow = np.linalg.matrix_power(Adense, power)
+        assert_allclose(Apow, Adense_pow)
+        assert_allclose(Apow, Amat_pow)
 
-class TestExpM(object):
+
+class TestExpM:
     def test_zero_ndarray(self):
         a = array([[0.,0],[0,0]])
         assert_array_almost_equal(expm(a),[[1,0],[0,1]])
 
     def test_zero_sparse(self):
-        a = csc_matrix([[0.,0],[0,0]])
+        a = csc_array([[0.,0],[0,0]])
         assert_array_almost_equal(expm(a).toarray(),[[1,0],[0,1]])
 
     def test_zero_matrix(self):
@@ -90,15 +101,15 @@ class TestExpM(object):
         assert_allclose(expm([[1]]), A)
         assert_allclose(expm(matrix([[1]])), A)
         assert_allclose(expm(np.array([[1]])), A)
-        assert_allclose(expm(csc_matrix([[1]])).A, A)
+        assert_allclose(expm(csc_array([[1]])).toarray(), A)
         B = expm(np.array([[1j]]))
         assert_allclose(expm(((1j,),)), B)
         assert_allclose(expm([[1j]]), B)
         assert_allclose(expm(matrix([[1j]])), B)
-        assert_allclose(expm(csc_matrix([[1j]])).A, B)
+        assert_allclose(expm(csc_array([[1j]])).toarray(), B)
 
     def test_bidiagonal_sparse(self):
-        A = csc_matrix([
+        A = csc_array([
             [1, 3, 0],
             [0, 1, 5],
             [0, 0, 2]], dtype=float)
@@ -116,7 +127,7 @@ class TestExpM(object):
             for scale in [1e-2, 1e-1, 5e-1, 1, 10]:
                 A = scale * eye(3, dtype=dtype)
                 observed = expm(A)
-                expected = exp(scale) * eye(3, dtype=dtype)
+                expected = exp(scale, dtype=dtype) * eye(3, dtype=dtype)
                 assert_array_almost_equal_nulp(observed, expected, nulp=100)
 
     def test_padecases_dtype_complex(self):
@@ -124,18 +135,18 @@ class TestExpM(object):
             for scale in [1e-2, 1e-1, 5e-1, 1, 10]:
                 A = scale * eye(3, dtype=dtype)
                 observed = expm(A)
-                expected = exp(scale) * eye(3, dtype=dtype)
+                expected = exp(scale, dtype=dtype) * eye(3, dtype=dtype)
                 assert_array_almost_equal_nulp(observed, expected, nulp=100)
 
     def test_padecases_dtype_sparse_float(self):
         # float32 and complex64 lead to errors in spsolve/UMFpack
         dtype = np.float64
         for scale in [1e-2, 1e-1, 5e-1, 1, 10]:
-            a = scale * speye(3, 3, dtype=dtype, format='csc')
-            e = exp(scale) * eye(3, dtype=dtype)
-            with suppress_warnings() as sup:
-                sup.filter(SparseEfficiencyWarning,
-                           "Changing the sparsity structure of a csc_matrix is expensive.")
+            a = scale * eye_array(3, 3, dtype=dtype, format='csc')
+            e = exp(scale, dtype=dtype) * eye(3, dtype=dtype)
+            with warnings.catch_warnings():
+                msg = "Changing the sparsity structure"
+                warnings.filterwarnings("ignore", msg, SparseEfficiencyWarning)
                 exact_onenorm = _expm(a, use_exact_onenorm=True).toarray()
                 inexact_onenorm = _expm(a, use_exact_onenorm=False).toarray()
             assert_array_almost_equal_nulp(exact_onenorm, e, nulp=100)
@@ -145,11 +156,11 @@ class TestExpM(object):
         # float32 and complex64 lead to errors in spsolve/UMFpack
         dtype = np.complex128
         for scale in [1e-2, 1e-1, 5e-1, 1, 10]:
-            a = scale * speye(3, 3, dtype=dtype, format='csc')
+            a = scale * eye_array(3, 3, dtype=dtype, format='csc')
             e = exp(scale) * eye(3, dtype=dtype)
-            with suppress_warnings() as sup:
-                sup.filter(SparseEfficiencyWarning,
-                           "Changing the sparsity structure of a csc_matrix is expensive.")
+            with warnings.catch_warnings():
+                msg = "Changing the sparsity structure"
+                warnings.filterwarnings("ignore", msg, SparseEfficiencyWarning)
                 assert_array_almost_equal_nulp(expm(a).toarray(), e, nulp=100)
 
     def test_logm_consistency(self):
@@ -179,8 +190,8 @@ class TestExpM(object):
                       [0, 0, 0, 0]], dtype=np.int16)
         assert_allclose(expm(Q), expm(1.0 * Q))
 
-        Q = csc_matrix(Q)
-        assert_allclose(expm(Q).A, expm(1.0 * Q).A)
+        Q = csc_array(Q)
+        assert_allclose(expm(Q).toarray(), expm(1.0 * Q).toarray())
 
     def test_triangularity_perturbation(self):
         # Experiment (1) of
@@ -211,8 +222,10 @@ class TestExpM(object):
         tiny = 1e-17
         A_logm_perturbed = A_logm.copy()
         A_logm_perturbed[1, 0] = tiny
-        with suppress_warnings() as sup:
-            sup.filter(RuntimeWarning, "Ill-conditioned.*")
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", "Ill-conditioned.*", RuntimeWarning)
+            warnings.filterwarnings("ignore", "An ill-conditioned.*", RuntimeWarning)
+
             A_expm_logm_perturbed = expm(A_logm_perturbed)
         rtol = 1e-4
         atol = 100 * tiny
@@ -462,7 +475,7 @@ class TestExpM(object):
         # This is Ward's example #4.
         # This is a version of the Forsythe matrix.
         # The eigenvector problem is badly conditioned.
-        # Ward's algorithm has difficulty esimating the accuracy
+        # Ward's algorithm has difficulty estimating the accuracy
         # of its results for this problem.
         #
         # Check the construction of one instance of this family of matrices.
@@ -510,23 +523,53 @@ class TestExpM(object):
         # Nilpotent exponential, used to trigger a failure (gh-8029)
 
         for scale in [1.0, 1e-3, 1e-6]:
-            for n in range(120):
+            for n in range(0, 80, 3):
+                sc = scale ** np.arange(n, -1, -1)
+                if np.any(sc < 1e-300):
+                    break
+
                 A = np.diag(np.arange(1, n + 1), -1) * scale
                 B = expm(A)
-
-                sc = scale**np.arange(n, -1, -1)
-                if np.any(sc < 1e-300):
-                    continue
 
                 got = B
                 expected = binom(np.arange(n + 1)[:,None],
                                  np.arange(n + 1)[None,:]) * sc[None,:] / sc[:,None]
-                err = abs(expected - got).max()
                 atol = 1e-13 * abs(expected).max()
                 assert_allclose(got, expected, atol=atol)
 
+    def test_matrix_input(self):
+        # Large np.matrix inputs should work, gh-5546
+        A = np.zeros((200, 200))
+        A[-1,0] = 1
+        B0 = expm(A)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", "the matrix subclass.*", DeprecationWarning)
+            warnings.filterwarnings(
+                "ignore", "the matrix subclass.*", PendingDeprecationWarning)
+            B = expm(np.matrix(A))
+        assert_allclose(B, B0)
 
-class TestOperators(object):
+    def test_exp_sinch_overflow(self):
+        # Check overflow in intermediate steps is fixed (gh-11839)
+        L = np.array([[1.0, -0.5, -0.5, 0.0, 0.0, 0.0, 0.0],
+                      [0.0, 1.0, 0.0, -0.5, -0.5, 0.0, 0.0],
+                      [0.0, 0.0, 1.0, 0.0, 0.0, -0.5, -0.5],
+                      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]])
+
+        E0 = expm(-L)
+        E1 = expm(-2**11 * L)
+        E2 = E0
+        for j in range(11):
+            E2 = E2 @ E2
+
+        assert_allclose(E1, E2)
+
+
+class TestOperators:
 
     def test_product_operator(self):
         random.seed(1234)
@@ -552,6 +595,5 @@ class TestOperators(object):
             A = np.random.randn(n, n)
             B = np.random.randn(n, k)
             op = MatrixPowerOperator(A, p)
-            assert_allclose(op.matmat(B), matrix_power(A, p).dot(B))
-            assert_allclose(op.T.matmat(B), matrix_power(A, p).T.dot(B))
-
+            assert_allclose(op.matmat(B), np.linalg.matrix_power(A, p).dot(B))
+            assert_allclose(op.T.matmat(B), np.linalg.matrix_power(A, p).T.dot(B))

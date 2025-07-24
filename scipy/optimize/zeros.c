@@ -6,7 +6,6 @@
 
 #include "Python.h"
 #include <setjmp.h>
-#include <numpy/npy_math.h>
 #include "Zeros/zeros.h"
 
 /*
@@ -27,7 +26,7 @@
 
 typedef struct {
     PyObject *function;
-    PyObject *args;
+    PyObject *xargs;
     jmp_buf env;
 } scipy_zeros_parameters;
 
@@ -37,13 +36,34 @@ static double
 scipy_zeros_functions_func(double x, void *params)
 {
     scipy_zeros_parameters *myparams = params;
-    PyObject *args, *f, *retval=NULL;
+    PyObject *args, *xargs, *item, *f, *retval=NULL;
+    Py_ssize_t i, len;
     double val;
 
-    args = myparams->args;
+    xargs = myparams->xargs;
+    /* Need to create a new 'args' tuple on each call in case 'f' is
+       stateful and keeps references to it (e.g. functools.lru_cache) */
+    len = PyTuple_Size(xargs);
+    /* Make room for the double as first argument */
+    args = PyArgs(New)(len + 1);
+    if (args == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to allocate arguments");
+        longjmp(myparams->env, 1);
+    }
+    PyArgs(SET_ITEM)(args, 0, Py_BuildValue("d", x));
+    for (i = 0; i < len; i++) {
+        item = PyTuple_GetItem(xargs, i);
+        if (item == NULL) {
+            Py_DECREF(args);
+            longjmp(myparams->env, 1);
+        }
+        Py_INCREF(item);
+        PyArgs(SET_ITEM)(args, i+1, item);
+    }
+
     f = myparams->function;
-    PyArgs(SetItem)(args, 0, Py_BuildValue("d",x));
     retval = PyObject_CallObject(f,args);
+    Py_DECREF(args);
     if (retval == NULL) {
         longjmp(myparams->env, 1);
     }
@@ -61,12 +81,10 @@ static PyObject *
 call_solver(solver_type solver, PyObject *self, PyObject *args)
 {
     double a, b, xtol, rtol, zero;
-    Py_ssize_t len;
-    int iter, i, fulloutput, disp=1, flag=0;
+    int iter, fulloutput, disp=1, flag=0;
     scipy_zeros_parameters params;
     scipy_zeros_info solver_stats;
-    PyObject *f, *xargs, *item;
-    volatile PyObject *fargs = NULL;
+    PyObject *f, *xargs;
 
     if (!PyArg_ParseTuple(args, "OddddiOi|i",
                 &f, &a, &b, &xtol, &rtol, &iter, &xargs, &fulloutput, &disp)) {
@@ -78,41 +96,20 @@ call_solver(solver_type solver, PyObject *self, PyObject *args)
         return NULL;
     }
     if (iter < 0) {
-        PyErr_SetString(PyExc_ValueError, "maxiter should be > 0");
+        PyErr_SetString(PyExc_ValueError, "maxiter must be >= 0");
         return NULL;
-    }
-
-    len = PyTuple_Size(xargs);
-    /* Make room for the double as first argument */
-    fargs = PyArgs(New)(len + 1);
-    if (fargs == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to allocate arguments");
-        return NULL;
-    }
-
-    for (i = 0; i < len; i++) {
-        item = PyTuple_GetItem(xargs, i);
-        if (item == NULL) {
-            Py_DECREF(fargs);
-            return NULL;
-        }
-        Py_INCREF(item);
-        PyArgs(SET_ITEM)(fargs, i+1, item);
     }
 
     params.function = f;
-    params.args = (PyObject *)fargs;  /* Discard the volatile attribute */
+    params.xargs = xargs;
 
     if (!setjmp(params.env)) {
         /* direct return */
         solver_stats.error_num = 0;
         zero = solver(scipy_zeros_functions_func, a, b, xtol, rtol,
                       iter, (void*)&params, &solver_stats);
-        Py_DECREF(fargs);
-        fargs = NULL;
     } else {
         /* error return from Python function */
-        Py_DECREF(fargs);
         return NULL;
     }
 
@@ -187,7 +184,6 @@ Zerosmethods[] = {
 	{NULL, NULL}
 };
 
-#if PY_VERSION_HEX >= 0x03000000
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
     "_zeros",
@@ -200,17 +196,19 @@ static struct PyModuleDef moduledef = {
     NULL
 };
 
-PyObject *PyInit__zeros(void)
+PyMODINIT_FUNC
+PyInit__zeros(void)
 {
-    PyObject *m;
+    PyObject *module;
 
-    m = PyModule_Create(&moduledef);
+    module = PyModule_Create(&moduledef);
+    if (module == NULL) {
+        return module;
+    }
 
-    return m;
-}
-#else
-PyMODINIT_FUNC init_zeros(void)
-{
-        Py_InitModule("_zeros", Zerosmethods);
-}
+#if Py_GIL_DISABLED
+    PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED);
 #endif
+
+    return module;
+}

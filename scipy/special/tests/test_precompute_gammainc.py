@@ -1,6 +1,3 @@
-from __future__ import division, print_function, absolute_import
-
-import numpy as np
 import pytest
 
 from scipy.special._testutils import MissingModule, check_version
@@ -21,8 +18,9 @@ except ImportError:
     mp = MissingModule('mpmath')
 
 
-_is_32bit_platform = np.intp(0).itemsize < 8
-
+pytestmark = pytest.mark.thread_unsafe(
+    reason=("mpmath gmpy2 backend is not thread-safe, "
+            "see https://github.com/mpmath/mpmath/issues/974"))
 
 @check_version(mp, '0.19')
 def test_g():
@@ -37,7 +35,7 @@ def test_g():
 @pytest.mark.slow
 @check_version(mp, '0.19')
 @check_version(sympy, '0.7')
-@pytest.mark.xfail(condition=_is_32bit_platform, reason="rtol only 2e-11, see gh-6938")
+@pytest.mark.xfail_on_32bit("rtol only 2e-11, see gh-6938")
 def test_alpha():
     # Test data for the alpha_k. See DLMF 8.12.14.
     with mp.workdps(30):
@@ -82,7 +80,7 @@ def test_d():
                    (9, 12, mp.mpf('0.870823417786464116761231237189e-6'))]
         d = compute_d(10, 13)
         res = [d[k][n] for k, n, std in dataset]
-        std = map(lambda x: x[2], dataset)
+        std = [x[2] for x in dataset]
         mp_assert_allclose(res, std)
 
 

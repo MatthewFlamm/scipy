@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, print_function, absolute_import
-
 from numpy import abs, sum, sign, arange
 from .go_benchmark import Benchmark
 
@@ -30,6 +27,7 @@ class Zacharov(Benchmark):
     For Global Optimization Problems Int. Journal of Mathematical Modelling
     and Numerical Optimisation, 2013, 4, 150-194.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -39,7 +37,6 @@ class Zacharov(Benchmark):
 
         self.global_optimum = [[0 for _ in range(self.N)]]
         self.fglob = 0.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1
@@ -72,6 +69,7 @@ class ZeroSum(Benchmark):
 
     .. [1] Gavana, A. Global Optimization Benchmarks and AMPGO retrieved 2015
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -80,7 +78,6 @@ class ZeroSum(Benchmark):
 
         self.global_optimum = [[]]
         self.fglob = 0.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1
@@ -177,12 +174,19 @@ class Zimmerman(Benchmark):
         self.fglob = 0.0
 
     def fun(self, x, *args):
-        self.nfev += 1
+        def Zh1(x):
+            return 9.0 - x[0] - x[1]
 
-        Zh1 = lambda x: 9.0 - x[0] - x[1]
-        Zh2 = lambda x: (x[0] - 3.0) ** 2.0 + (x[1] - 2.0) ** 2.0 - 16.0
-        Zh3 = lambda x: x[0] * x[1] - 14.0
-        Zp = lambda x: 100.0 * (1.0 + x)
+        def Zh2(x):
+            return (x[0] - 3.0) ** 2.0 + (x[1] - 2.0) ** 2.0 - 16.0
+
+        def Zh3(x):
+            return x[0] * x[1] - 14.0
+
+        def Zp(x):
+            return 100.0 * (1.0 + x)
+
+        self.nfev += 1
 
         return max(Zh1(x),
                    Zp(Zh2(x)) * sign(Zh2(x)),

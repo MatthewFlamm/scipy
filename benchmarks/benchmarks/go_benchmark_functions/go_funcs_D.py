@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, print_function, absolute_import
-
 import numpy as np
 from numpy import abs, cos, exp, arange, pi, sin, sqrt, sum, zeros, tanh
 from numpy.testing import assert_almost_equal
@@ -89,11 +86,10 @@ class Deb01(Benchmark):
     For Global Optimization Problems Int. Journal of Mathematical Modelling
     and Numerical Optimisation, 2013, 4, 150-194.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
-
-        self.change_dimensionality = True
 
         self._bounds = list(zip([-1.0] * self.N, [1.0] * self.N))
 
@@ -114,7 +110,7 @@ class Deb03(Benchmark):
 
     .. math::
 
-        f_{\text{Deb02}}(x) = - \frac{1}{N} \sum_{i=1}^n \sin^6 \left[ 5 \pi
+        f_{\text{Deb03}}(x) = - \frac{1}{N} \sum_{i=1}^n \sin^6 \left[ 5 \pi
         \left ( x_i^{3/4} - 0.05 \right) \right ]
 
 
@@ -129,13 +125,13 @@ class Deb03(Benchmark):
     For Global Optimization Problems Int. Journal of Mathematical Modelling
     and Numerical Optimisation, 2013, 4, 150-194.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
 
-        self.change_dimensionality = True
-
-        self._bounds = list(zip([-1.0] * self.N, [1.0] * self.N))
+        # lower limit changed to zero because of fractional power
+        self._bounds = list(zip([0.0] * self.N, [1.0] * self.N))
 
         self.global_optimum = [[0.93388314, 0.68141781]]
         self.fglob = -1.0
@@ -231,6 +227,7 @@ class Deceptive(Benchmark):
     is based on his code.  His code and the website don't match, the equations
     are wrong.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -241,7 +238,6 @@ class Deceptive(Benchmark):
 
         self.global_optimum = [alpha]
         self.fglob = -1.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1
@@ -337,6 +333,7 @@ class DeflectedCorrugatedSpring(Benchmark):
     below is different to the equation above.  Also, the global minimum is
     wrong.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -346,7 +343,6 @@ class DeflectedCorrugatedSpring(Benchmark):
 
         self.global_optimum = [[alpha for _ in range(self.N)]]
         self.fglob = -1.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1
@@ -405,8 +401,8 @@ class DeVilliersGlasser02(Benchmark):
     r"""
     DeVilliers-Glasser 2 objective function.
 
-    This class defines the DeVilliers-Glasser 2 [1]_ function global optimization problem. This
-    is a multimodal minimization problem defined as follows:
+    This class defines the DeVilliers-Glasser 2 [1]_ function global optimization
+    problem. This is a multimodal minimization problem defined as follows:
 
     .. math::
 
@@ -473,6 +469,7 @@ class DixonPrice(Benchmark):
 
     TODO: Gavana code not correct.  i array should start from 2.
     """
+    change_dimensionality = True
 
     def __init__(self, dimensions=2):
         Benchmark.__init__(self, dimensions)
@@ -483,7 +480,6 @@ class DixonPrice(Benchmark):
         self.global_optimum = [[2.0 ** (-(2.0 ** i - 2.0) / 2.0 ** i)
                                for i in range(1, self.N + 1)]]
         self.fglob = 0.0
-        self.change_dimensionality = True
 
     def fun(self, x, *args):
         self.nfev += 1

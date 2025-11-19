@@ -6,7 +6,7 @@
 	"image": "mcr.microsoft.com/devcontainers/universal:4"
 	"features": {},
 
-	"onCreateCommand": ".devcontainer/setup.sh",
+	"onCreateCommand": "",
 	"postCreateCommand": "",
 
 	"customizations": {
